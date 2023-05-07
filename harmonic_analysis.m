@@ -1,22 +1,63 @@
 clc
 clear all
 close all
+addpath(genpath('additional-packages'));
 
 %% import and auralize full audio
-[x, fs] = audioread("full-speech-sample.wav");
+[x, fs] = audioread("sample_anechoic_min90.wav");
+tx = (0:size(x,1)-1)/fs;
 
+[l, fs] = audioread("sample_rev_low_min90.wav");
+tl = (0:size(l,1)-1)/fs;
 
+[h, fs] = audioread("sample_rev_high_min90.wav");
+th = (0:size(h,1)-1)/fs;
+
+figure(1)
+subplot(3,2,1)
+plot(tx, x(:,1))
+xlim([0 3.2])
+ylim([-0.15 0.15])
+hold on
+
+subplot(3,2,2)
+plot(tx, x(:,2))
+xlim([0 3.2])
+ylim([-0.15 0.15])
+hold on
+
+subplot(3,2,3)
+plot(tl, l(:,1))
+xlim([0 3.2])
+ylim([-0.15 0.15])
+
+subplot(3,2,4)
+plot(tl, l(:,2))
+xlim([0 3.2])
+ylim([-0.15 0.15])
+
+subplot(3,2,5)
+plot(th, h(:,1))
+xlim([0 3.2])
+ylim([-0.15 0.15])
+
+subplot(3,2,6)
+plot(th, h(:,2))
+xlim([0 3.2])
+ylim([-0.15 0.15])
 
 %% speech analysis
 % conduct VAD on clean speech
 Nw = 512;
 Nsh = 256;
-y = G729(x, fs, Nw, Nsh);
+yl = 0.05*G729(x(:,1), fs, Nw, Nsh);
+yr = 0.05*G729(x(:,2), fs, Nw, Nsh);
 
 figure(1)
-plot(x)
-hold on
-plot(y)
+subplot(3,2,1)
+plot(tx, yl)
+subplot(3,2,2)
+plot(tx, yr)
 
 % select a voiced segment from clean speech
 x_voiced = x(y==1);
