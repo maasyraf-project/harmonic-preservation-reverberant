@@ -2,9 +2,12 @@ clc
 clear all
 close all
 
-% import full audio
+%% import and auralize full audio
 [x, fs] = audioread("full-speech-sample.wav");
 
+
+
+%% speech analysis
 % conduct VAD on clean speech
 Nw = 512;
 Nsh = 256;
@@ -41,13 +44,13 @@ X_long = fft(x_voiced_longFrame, longFrame);
 X_long = abs(X_long(1:longFrame/2+1));
 
 figure(2)
-subplot(2,1,1)
+subplot(5,1,1)
 plot(F_short, X_short)
 xlim([0 3000])
 
-subplot(2,1,2)
+figure(3)
+subplot(5,1,1)
 plot(F_long, X_long)
 xlim([0 3000])
 
-% make fft on voiced audio sample
 % estimate F0 of voiced audio sample
