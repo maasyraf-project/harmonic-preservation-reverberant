@@ -35,24 +35,26 @@ VADPar = InitVADPar(fs,Nw,Nsh);
 nfft = 4096;
 f = (fs/2) * linspace(0,1,nfft/2+1);
 
+syl = zeros(1, size(x,1) + nfft);
 for i = 1:size(xl,2)
     xl(:,i) = xl(:,i) .* win;
 
     % conduct fft
-    if i == 120
-        SXL = fft(xl(:,i), nfft);
-        XL = abs(SXL(1:numel(f)));
-        
-        sxl = ifft(SXL, nfft); 
-        sxl = sxl(1:Nw);
+    SXL = fft(xl(:,i), nfft);
+    XL = abs(SXL(1:numel(f)));
 
+    % harmonic reconstruction
+
+    % plot
+    if i == 100
         figure()
         plot(f, XL);
-
-        figure()
-        subplot(211)
-        plot(xl(:,i))
-        subplot(212)
-        plot(real(sxl))
     end
+
+    % conduct ifft
+    sxl = real(ifft(SXL, nfft));
+    outIndex = i*Nsh+1:i*Nsh+nfft;
+
+    syl(outIndex) = syl(outIndex) + sxl';
+
 end

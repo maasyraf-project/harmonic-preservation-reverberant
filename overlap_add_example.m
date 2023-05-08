@@ -30,6 +30,7 @@ figure(2);
 subplot(411); stem(sig); axis( [0 length(sig) -0.2 1.2]);
 title('signal'); ylabel('amplitude');
 window = hanning(M)'; % Signal window (could also be rect)
+
 for m = 0:(Nframes-1)
 index = m*R+1:min(m*R+M,Nsig); % index for the mth frame
 xm = sig(index) .* window(index-m*R); % windowed mth frame
@@ -39,6 +40,8 @@ Xfilt = Xm .* H; % freq domain multiplication
 xmfilt = real(ifft(Xfilt)); % inverse transform
 outindex = m*R+1:(m*R+Nfft); %
 y(outindex) = y(outindex) + xmfilt; % overlap add
+
+
 xmplot = [ zeros(1,m*R) xm zeros(1,Nsig-(m*R+M)) ];
 winplot = [ zeros(1,m*R) window zeros(1,Nsig-(m*R+M)) ];
 xmfiltplot = [ zeros(1,m*R) xmfilt zeros(1,Nsig-(m*R+Nfft)) ];
