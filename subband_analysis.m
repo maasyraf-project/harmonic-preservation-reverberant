@@ -239,7 +239,7 @@ for i = 2:length(env_lp_kurt_data)
         tic
         for m=1:niter
             yrn=zeros(bs,1);
-            for k=1:ss:size(env_lp_data{i}{1},2)
+            for k=1:ss:size(env_kurt_data{i}{1},2)
                 yrn(1:p-1)=yrn(end-p+2:end);
 
                 if k+ss-1 < size(env_lp_kurt_data{i}{1},2)
@@ -294,7 +294,7 @@ for i = 2:length(env_lp_kurt_data)
         tic
         for m=1:niter
             yrn=zeros(bs,1);
-            for k=1:ss:size(env_lp_data{i}{2},2)
+            for k=1:ss:size(env_kurt_data{i}{2},2)
                 yrn(1:p-1)=yrn(end-p+2:end);
 
                 if k+ss-1 < size(env_lp_kurt_data{i}{2},2)
@@ -351,6 +351,55 @@ for i = 2:length(env_lp_kurt_data)
     rmsl = rms2(l_sub_buf, 2);
     rmsr = rms2(r_sub_buf, 2);
     rms_env_filtered_data{i} = {rmsl, rmsr};
+
+end
+
+% conduct spectral substraction
+env_ss_data = cell(1, length(env_data));
+for i = 1:length(env_filtered_data)
+    l_sub_buf = nan(size(env_lp_data{i}{1}));
+    r_sub_buf = nan(size(env_lp_data{i}{2}));
+
+    for j = 1:size(env_filtered_data{1}{1},1)
+        % define parameter
+        [L, f, t] = stft(env_filtered_data{i}{1}(j,:), 512, 256, 512, fs);
+        [R, f, t] = stft(env_filtered_data{i}{2}(j,:), 512, 256, 512, fs);
+        
+        L_pow = abs(L).^2;
+        R_pow = abs(R).^2;
+
+        L_phase = angle(L);
+        R_phase = angle(R);
+        
+        ro_w=7;
+        a_w=5;
+        i_w=-ro_w:15;
+        wS=(i_w+a_w)/(a_w^2).*exp(-.5*(i_w/a_w+1).^2);
+        wS(i_w<-a_w)=0;
+
+        gS=.32;
+        epS=1e-3;
+        L_sub = gS*filter(wS,1,L_pow.').';
+        R_sub = gS*filter(wS,1,R_pow.').';
+
+        LP_att=(L_pow-L_sub)./L_pow;
+        LP_att(LP_att<epS)=epS;
+
+        RP_att=(R_pow-R_sub)./R_pow;
+        RP_att(RP_att<epS)=epS;
+        
+        % predict enhanced specstrum
+        SL_pow = L_pow .* LP_att;
+        SR_pow = R_pow .* RP_att;
+
+        SL_phase = sqrt(SL_pow).*exp(1i*L_phase);
+        SR_phase = sqrt(SR_pow).*exp(1i*R_phase);
+
+        % spectrum analysis
+        l_sub_buf(j,:) = l_sig;
+        r_sub_buf(j,:) = r_sig;
+    end
+    env_lp_kurt_data{i} = {l_sub_buf, r_sub_buf};
 
 end
 
