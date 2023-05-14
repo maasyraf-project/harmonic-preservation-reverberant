@@ -103,26 +103,91 @@ for i = 1:length(env_data)
 end
 
 env_lp_lpc_data = cell(1, length(env_data));
+sig_vad = cell(1, length(raw_data));
 for i = 1:length(env_data)
     l_sub_buf = nan(size(env_data{i}{1}));
     r_sub_buf = nan(size(env_data{i}{2}));
 
+    % split audio into several frames
+    lenFrames = 400;
+    lenOverlap = 200;
+    nFrames = ceil(size(env_data{i}{1},2)/lenFrames);
+
+    l_vad_buf = nan(size(env_data{i}{1},1),nFrames);
+    r_vad_buf = nan(size(env_data{i}{2},1),nFrames);
+
     for j = 1:size(env_data{1}{1},1)
         l = env_data{i}{1}(j,:);
         r = env_data{i}{2}(j,:);
+
+        % conduct VAD
+        VADPar = InitVADPar(fs,lenFrames,lenOverlap);
+        idxStart = 1;
+        idxEnd = lenOverlap;
+
+        l_vad = [];
+        r_vad = [];
+
+        estl = zeros(size(l));
+        estr = zeros(size(r));
+
+        % y_vad = zeros(size(l));
+
+        for n = 1:nFrames
+            l_frame = l(idxStart:idxEnd);
+            r_frame = r(idxStart:idxEnd);
+
+            if or(length(l_frame) < lenOverlap, length(r_frame) < lenOverlap)
+                l_frame = [l_frame zeros(1, lenOverlap - length(l_frame))];
+                r_frame = [r_frame zeros(1, lenOverlap - length(r_frame))];
+            end
+            
+            % calculate VAD
+            [lv,VADPar] = VAD(l_frame', VADPar);
+            [rv,VADPar] = VAD(r_frame', VADPar);
+
+            l_vad = [l_vad, lv];
+            r_vad = [r_vad, rv];
+            
+            % y_vad(idxStart:idxEnd) = lv;
+
+            if lv == 1 
+                % apply LPC on voiced segments
+                la = lpc(l_frame, 12);
+                estl_frame = filter([0 -la(2:end)], 1, l_frame);
+                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + estl_frame;
+            else 
+                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + l(idxStart:idxEnd);
+            end
+
+            if rv == 1 
+                % apply LPC on voiced segments
+                ra = lpc(r_frame, 12);
+                estr_frame = filter([0 -ra(2:end)], 1, r_frame);
+                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame;
+            else
+                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + r(idxStart:idxEnd);
+            end
+            
+            % update index for selecting next frame
+            idxStart = idxStart + lenOverlap;
+            idxEnd = idxEnd + lenOverlap;
         
-        la = lpc(l, 3);
-        ra = lpc(r, 3);
+        end
 
-        estl = filter([0 -la(2:end)], 1, l);
-        estr = filter([0 -ra(2:end)], 1, r);
-
+        l_vad_buf(j,:) = l_vad;
+        r_vad_buf(j,:) = r_vad;
+        
+        % calculating LP residual signal
         l_sig = l - estl;
         r_sig = r - estr;
 
         l_sub_buf(j,:) = l_sig;
         r_sub_buf(j,:) = r_sig;
+
     end
+    
+    sig_vad = {l_vad_buf, r_vad_buf};
     env_lp_lpc_data{i} = {l_sub_buf, r_sub_buf};
 
 end
@@ -277,7 +342,7 @@ for i = 2:length(env_lp_kurt_data)
         gh = ifft(Gh);
         gh = gh(1:p);
 
-        rz = filter(gh, 1, env_lp_data{i}{1}(j,:));
+        rz = filter(gh, 1, env_lp_data{i}{2}(j,:));
         r_sub_buf(j,:) = rz;
 
     end
