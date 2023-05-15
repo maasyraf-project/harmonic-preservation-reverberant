@@ -109,8 +109,8 @@ for i = 1:length(env_data)
     r_sub_buf = nan(size(env_data{i}{2}));
 
     % split audio into several frames
-    lenFrames = 400;
-    lenOverlap = 200;
+    lenFrames = 500;
+    lenOverlap = 250;
     nFrames = ceil(size(env_data{i}{1},2)/lenFrames);
 
     l_vad_buf = nan(size(env_data{i}{1},1),nFrames);
@@ -172,6 +172,11 @@ for i = 1:length(env_data)
             % update index for selecting next frame
             idxStart = idxStart + lenOverlap;
             idxEnd = idxEnd + lenOverlap;
+
+            % check whether NaN data appear during processing
+            if anynan(estr) == 1
+                warning(strcat("NaN value appear ", string(i)))
+            end
         
         end
 
@@ -234,12 +239,12 @@ for i = 2:length(env_lp_kurt_data)
         zr2=zeros(bs,1);
         zr3=zeros(bs,1);
         zr4=zeros(bs,1);
-        
+
         disp("processing Left Channel")
         tic
         for m=1:niter
             yrn=zeros(bs,1);
-            for k=1:ss:size(env_kurt_data{i}{1},2)
+            for k=1:ss:size(env_lp_kurt_data{i}{1},2)
                 yrn(1:p-1)=yrn(end-p+2:end);
 
                 if k+ss-1 < size(env_lp_kurt_data{i}{1},2)
@@ -263,13 +268,6 @@ for i = 2:length(env_lp_kurt_data)
 
                 zkurt(m)=max(zkurt(m),Z4/(Z2^2+1e-15)*ss);
 
-                %         z3y=fft(zr3).*cYrn;
-                %         zy=fft(zrn).*cYrn;
-                %
-                %         gJ=4*(Z2*z3y-Z4*zy)/(Z2^3+1e-20)*ss;
-                %         Gh=Gh+mu*gJ;
-
-
                 z3y=ifft(fft(zr3).*cYrn);
                 z3y(p+1:end)=0;
                 zy=ifft(fft(zrn).*cYrn);
@@ -290,17 +288,28 @@ for i = 2:length(env_lp_kurt_data)
         lz = filter(gh, 1, env_lp_data{i}{1}(j,:));
         l_sub_buf(j,:) = lz;
 
+        % processing right channel
+        clear gh Gh
+        gh=(1:p).';
+        gh=gh./sqrt(sum(abs(gh).^2));
+        Gh=fft([gh; zeros(ss-1,1)]);
+        zkurt=zeros(niter,1);
+
+        zr2=zeros(bs,1);
+        zr3=zeros(bs,1);
+        zr4=zeros(bs,1);
+
         disp("processing Right Channel")
         tic
         for m=1:niter
             yrn=zeros(bs,1);
-            for k=1:ss:size(env_kurt_data{i}{2},2)
+            for k=1:ss:size(env_lp_kurt_data{i}{2},2)
                 yrn(1:p-1)=yrn(end-p+2:end);
 
                 if k+ss-1 < size(env_lp_kurt_data{i}{2},2)
                     yrn(p:end) = env_lp_kurt_data{i}{2}(j,k:k+ss-1);
                 else
-                    env_padded = [env_lp_kurt_data{i}{2}(j,k:end) zeros(1, size(yrn(p:end),1)-size(env_lp_kurt_data{i}{1}(j,k:end),2))];
+                    env_padded = [env_lp_kurt_data{i}{2}(j,k:end) zeros(1, size(yrn(p:end),1)-size(env_lp_kurt_data{i}{2}(j,k:end),2))];
                     yrn(p:end) = env_padded';
                 end
 
@@ -317,13 +326,6 @@ for i = 2:length(env_lp_kurt_data)
                 Z4=sum(zr4(p:end));
 
                 zkurt(m)=max(zkurt(m),Z4/(Z2^2+1e-15)*ss);
-
-                %         z3y=fft(zr3).*cYrn;
-                %         zy=fft(zrn).*cYrn;
-                %
-                %         gJ=4*(Z2*z3y-Z4*zy)/(Z2^3+1e-20)*ss;
-                %         Gh=Gh+mu*gJ;
-
 
                 z3y=ifft(fft(zr3).*cYrn);
                 z3y(p+1:end)=0;
@@ -347,7 +349,7 @@ for i = 2:length(env_lp_kurt_data)
 
     end
     env_filtered_data{i} = {l_sub_buf, r_sub_buf};
-    
+
     rmsl = rms2(l_sub_buf, 2);
     rmsr = rms2(r_sub_buf, 2);
     rms_env_filtered_data{i} = {rmsl, rmsr};
@@ -356,14 +358,14 @@ end
 
 % conduct spectral substraction
 env_ss_data = cell(1, length(env_data));
-for i = 1:length(env_filtered_data)
+for i = 2:length(env_filtered_data)
     l_sub_buf = nan(size(env_lp_data{i}{1}));
     r_sub_buf = nan(size(env_lp_data{i}{2}));
 
-    for j = 1:size(env_filtered_data{1}{1},1)
+    for j = 1:size(env_filtered_data{2}{1},1)
         % define parameter
-        [L, f, t] = stft(env_filtered_data{i}{1}(j,:), 512, 256, 512, fs);
-        [R, f, t] = stft(env_filtered_data{i}{2}(j,:), 512, 256, 512, fs);
+        [L, f, t] = stft(env_filtered_data{i}{1}(j,:),fs, Window=hanning(400), OverlapLength=200, FFTLength=400);
+        [R, f, t] = stft(env_filtered_data{i}{2}(j,:),fs, Window=hanning(400), OverlapLength=200, FFTLength=400);
         
         L_pow = abs(L).^2;
         R_pow = abs(R).^2;
@@ -382,24 +384,49 @@ for i = 1:length(env_filtered_data)
         L_sub = gS*filter(wS,1,L_pow.').';
         R_sub = gS*filter(wS,1,R_pow.').';
 
-        LP_att=(L_pow-L_sub)./L_pow;
+        LP_att=(L_pow-L_sub)./(L_pow+eps);
         LP_att(LP_att<epS)=epS;
 
-        RP_att=(R_pow-R_sub)./R_pow;
+        RP_att=(R_pow-R_sub)./(R_pow+eps);
         RP_att(RP_att<epS)=epS;
         
         % predict enhanced specstrum
         SL_pow = L_pow .* LP_att;
         SR_pow = R_pow .* RP_att;
 
-        SL_phase = sqrt(SL_pow).*exp(1i*L_phase);
-        SR_phase = sqrt(SR_pow).*exp(1i*R_phase);
+        SL = sqrt(SL_pow).*exp(1i*L_phase);
+        SR = sqrt(SR_pow).*exp(1i*R_phase);
+        
+        % inverse transfrom to time domain
+        nu1 = .05;
+        nu2 = 4;
+
+        EL = sum(abs(L).^2, 1)/size(L,1);
+        ESL = sum(abs(SL).^2, 1)/size(SL,1);
+
+        ER = sum(abs(R).^2, 1)/size(R,1);
+        ESR = sum(abs(SR).^2, 1)/size(SR,1);
+
+        LP_att=ones(size(L,2),1);
+        LP_att(EL<nu1 & EL./ESL>nu2) = 1e-3;
+
+        RP_att=ones(size(R,2),1);
+        RP_att(EL<nu1 & EL./ESL>nu2) = 1e-3;
+
+        SL = SL*spdiags(LP_att,0,length(LP_att),length(LP_att));
+        SR = SR*spdiags(RP_att,0,length(RP_att),length(RP_att));
+
+        [sl, t_istft] = istft(SL, fs, Window=hanning(400), OverlapLength=200, FFTLength=400);
+        [sr, t_istft] = istft(SR, fs, Window=hanning(400), OverlapLength=200, FFTLength=400);
+
+        l_sig = sl/max(abs(sl));
+        r_sig = sr/max(abs(sr));
 
         % spectrum analysis
-        l_sub_buf(j,:) = l_sig;
-        r_sub_buf(j,:) = r_sig;
+        l_sub_buf(j,:) = [l_sig' zeros(1, length(env_filtered_data{i}{1}(j,:))-length(l_sig))];
+        r_sub_buf(j,:) = [r_sig' zeros(1, length(env_filtered_data{i}{2}(j,:))-length(r_sig))];
     end
-    env_lp_kurt_data{i} = {l_sub_buf, r_sub_buf};
+    env_ss_data{i} = {l_sub_buf, r_sub_buf};
 
 end
 
@@ -512,6 +539,24 @@ for i = 1:length(env_filtered_data)
             plot(env_lp_data{i}{1}(j,:))
         else
             plot(env_filtered_data{i}{1}(j,:))
+        end
+        legend(data_label)
+        hold on
+        ylabel("Enhanced Envelope Amplitude")
+        if j == 4
+            xlabel("Sample")
+        end
+    end
+end
+
+figure
+for i = 1:length(env_ss_data)
+    for j = 1:4%size(env_data{1}{1},1)
+        subplot(4,1,j)
+        if i == 1
+            plot(env_lp_data{i}{1}(j,:))
+        else
+            plot(abs(env_ss_data{i}{1}(j,:)))
         end
         legend(data_label)
         hold on
