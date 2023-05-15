@@ -356,6 +356,19 @@ for i = 2:length(env_lp_kurt_data)
 
 end
 
+% adjust RMS of signal
+for i = 2:length(env_filtered_data)
+    l_sub_buf = nan(size(env_filtered_data{i}{1}));
+    r_sub_buf = nan(size(env_filtered_data{i}{2}));
+
+    for j = 1:size(env_data{1}{1},1)
+        l_sub_buf(j,:) = (rms_env_data{i}{1}(j) / rms_env_filtered_data{i}{1}(j)) * env_filtered_data{i}{1}(j,:);
+        r_sub_buf(j,:) = (rms_env_data{i}{2}(j) / rms_env_filtered_data{i}{2}(j)) * env_filtered_data{i}{2}(j,:);
+    end
+    env_filtered_data{i} = {l_sub_buf, r_sub_buf};
+
+end
+
 % conduct spectral substraction
 env_ss_data = cell(1, length(env_data));
 for i = 2:length(env_filtered_data)
@@ -457,25 +470,25 @@ end
 
 %% reconstruction / synthesis part
 % Create analyse -Filterbank
-% analyzer_aural = Gfb_Analyzer_new(par.voc_sampling_frequency_hz,...
-%     par.gamma_order_auralisation,...
-%     par.center_frequencies_hz_auralisation,...
-%     par.bandwidth_factor);
-% 
-% enh_data = cell(1, length(env_filtered_data));
-% for i = 2:length(pe_data)
-%     [l_sig, ~] = Gfb_Analyzer_process(analyzer_aural, env_filtered_data{i}{1});
-%     [r_sig, ~] = Gfb_Analyzer_process(analyzer_aural, env_filtered_data{i}{2});
-%     enh_data{i} = {l_sig, r_sig}; 
-% end
-% 
-% synthesizer_aural = Gfb_Synthesizer_new (analyzer_aural, 1/100);
-% 
-% for i = 2:length(pe_data)
-%     [l_sig, ~] = Gfb_Synthesizer_process(synthesizer_aural, env_filtered_data{i}{1});
-%     [r_sig, ~] = Gfb_Synthesizer_process(synthesizer_aural, env_filtered_data{i}{2});
-%     enh_data{i} = {l_sig, r_sig}; 
-% end
+analyzer_aural = Gfb_Analyzer_new(par.voc_sampling_frequency_hz,...
+    par.gamma_order_auralisation,...
+    par.center_frequencies_hz_auralisation,...
+    par.bandwidth_factor);
+
+enh_data = cell(1, length(env_filtered_data));
+for i = 2:length(pe_data)
+    l_sig = Gfb_Analyzer_process(analyzer_aural, env_filtered_data{i}{1});
+    r_sig = Gfb_Analyzer_process(analyzer_aural, env_filtered_data{i}{2});
+    enh_data{i} = {l_sig, r_sig}; 
+end
+
+synthesizer_aural = Gfb_Synthesizer_new (analyzer_aural, 1/100);
+
+for i = 2:length(pe_data)
+    [l_sig, ~] = Gfb_Synthesizer_process(synthesizer_aural, env_filtered_data{i}{1});
+    [r_sig, ~] = Gfb_Synthesizer_process(synthesizer_aural, env_filtered_data{i}{2});
+    enh_data{i} = {l_sig, r_sig}; 
+end
 
 
 %% plot the figure
