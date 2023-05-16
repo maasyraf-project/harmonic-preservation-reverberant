@@ -30,3 +30,18 @@ addpath(genpath('additional-packages'))
 [an_bi_subsig, ~, ~] = BiCI_Sim_EAF(an, fs, 'Med-El', 'subband-signal');
 [lrev_bi_subsig, ~, ~] = BiCI_Sim_EAF(lrev, fs, 'Med-El', 'subband-signal');
 [hrev_bi_subsig, ~, ~] = BiCI_Sim_EAF(hrev, fs, 'Med-El', 'subband-signal');
+
+%% calculate metric
+% intelligibility
+an_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), an_bi(:,1), an_bi(:,2), fs);
+lrev_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), lrev_bi(:,1), lrev_bi(:,2), fs);
+hrev_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), hrev_bi(:,1), hrev_bi(:,2), fs);
+
+lrev_full_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), lrev_bi_full(:,1), lrev_bi_full(:,2), fs);
+hrev_full_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), hrev_bi_full(:,1), hrev_bi_full(:,2), fs);
+lrev_subenv_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), lrev_bi_subenv(:,1), lrev_bi_subenv(:,2), fs);
+hrev_subenv_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), hrev_bi_subenv(:,1), hrev_bi_subenv(:,2), fs);
+lrev_subsig_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), lrev_bi_subsig(:,1), lrev_bi_subsig(:,2), fs);
+hrev_subsig_mbstoi = mbstoi(an_bi(:,1), an_bi(:,2), hrev_bi_subsig(:,1), hrev_bi_subsig(:,2), fs);
+
+% spatial cues
