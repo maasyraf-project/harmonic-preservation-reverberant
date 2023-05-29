@@ -14,10 +14,12 @@ addpath(genpath('additional-packages'))
 
 % concatenate all loaded data
 raw_data = {an, lrev, hrev};
+max_len_data = max([length(an), length(lrev), length(hrev)]);
+t = 0:(1/fs):(max_len_data-1)/fs;
 
-%% vocoder process
+%% vocoder preparation
 % parameter
-par.voc_sampling_frequency_hz = 16e3;
+par.voc_sampling_frequency_hz = 48e3;
 par.gamma_order_stimulation = 3;
 par.gamma_order_auralisation = 3;
 par.center_frequencies_hz_stimulation = [120 235 384 579 836 1175 1624 2222 3019 4084 5507 7410];
@@ -27,12 +29,15 @@ par.weights = [0.98 0.98 0.98 0.68 0.68 0.45 0.45 0.2 0.2 0.15 0.15 0.15]';
 
 % resampling
 if par.voc_sampling_frequency_hz ~= fs
-    for i = 1:length(pe_data)
-        pe_data{i} = resample(pe_data{i}, par.voc_sampling_frequency_hz, fs);
+    for i = 1:length(raw_data)
+        raw_data{i} = resample(raw_data{i}, par.voc_sampling_frequency_hz, fs);
     end
+    fs = par.voc_sampling_frequency_hz;
+    max_len_data = max([length(raw_data{1}), length(raw_data{2}), length(raw_data{3})]);
+    t = 0:(1/fs):(max_len_data-1)/fs;
 end
 
-% pre-emphasis filter
+%% pre-emphasis filter
 pe_data = cell(1, length(raw_data));
 for i = 1:length(raw_data)
     w     = 2*1200/fs;
@@ -42,6 +47,7 @@ for i = 1:length(raw_data)
     pe_data{i} = [l_sig, r_sig]; 
 end
 
+%% decompose into subband
 % Create analyse -Filterbank
 analyzer_stim = Gfb_Analyzer_new(par.voc_sampling_frequency_hz,...
     par.gamma_order_stimulation, ...
@@ -102,6 +108,7 @@ for i = 1:length(env_data)
 
 end
 
+%% extract linear prediction of envelope
 env_lp_lpc_data = cell(1, length(env_data));
 sig_vad = cell(1, length(raw_data));
 for i = 1:length(env_data)
@@ -148,7 +155,7 @@ for i = 1:length(env_data)
 
             l_vad = [l_vad, lv];
             r_vad = [r_vad, rv];
-            
+
             % y_vad(idxStart:idxEnd) = lv;
 
             if lv == 1 
@@ -165,6 +172,7 @@ for i = 1:length(env_data)
                 ra = lpc(r_frame, 12);
                 estr_frame = filter([0 -ra(2:end)], 1, r_frame);
                 estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame;
+
             else
                 estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + r(idxStart:idxEnd);
             end
@@ -175,7 +183,7 @@ for i = 1:length(env_data)
 
             % check whether NaN data appear during processing
             if anynan(estr) == 1
-                warning(strcat("NaN value appear ", string(i)))
+                warning(strcat("NaN value appear ", string(n)))
             end
         
         end
@@ -197,6 +205,7 @@ for i = 1:length(env_data)
 
 end
 
+%% extract kurtosis data of LP-residual
 env_lp_kurt_data = cell(1, length(env_lp_data));
 for i = 1:length(env_lp_data)
     l_sub_buf = nan(size(env_lp_data{i}{1}));
@@ -492,7 +501,8 @@ end
 
 
 %% plot the figure
-data_label = ["clean speech", "low reverberant speech", "high reverberant speech"];
+data_label = ["clean speech", "low reverberant speech"];
+% data_label = ["clean speech", "low reverberant speech", "high reverberant speech"];
 
 % figure
 % for i = 1:length(env_lp_kurt_data)
@@ -502,25 +512,49 @@ data_label = ["clean speech", "low reverberant speech", "high reverberant speech
 %     end
 % end
 
+%% plot envelope of data
 figure
-for i = 1:length(env_lp_data)
-    for j = 1:4%size(env_data{1}{1},1)
-        subplot(4,1,j)
-        plot(env_lp_data{i}{1}(j,:))
+for i = 1:2:3%length(env_lp_data)
+    for j = 1:6%size(env_data{1}{1},1)
+        subplot(6,1,j)
+        if i == 1
+            plot(t(1:length(env_lp_data{i}{2}(j,:))), env_lp_data{i}{2}(j,:), "Color", [0 0 0 1])
+        else
+            plot(t(1:length(env_lp_data{i}{2}(j,:))), env_lp_data{i}{2}(j,:), "Color", [0.5 0.5 0.5 0.8])
+        end
         legend(data_label)
         hold on
         ylabel("Envelope Amplitude")
-        if j == 4
+        if j == 6
             xlabel("Sample")
         end
     end
 end
 
 figure
+for i = 1:2:3%length(env_lp_data)
+    for j = 1:6%size(env_data{1}{1},1)
+        subplot(6,1,j)
+        if i == 1
+            plot(t(1:length(env_lp_data{i}{2}(j+6,:))), env_lp_data{i}{2}(j+6,:), "Color", [0 0 0 1])
+        else
+            plot(t(1:length(env_lp_data{i}{2}(j+6,:))), env_lp_data{i}{2}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
+        end
+        legend(data_label)
+        hold on
+        ylabel("Envelope Amplitude")
+        if j == 6
+            xlabel("Sample")
+        end
+    end
+end
+
+%% plot LP-analysis results
+figure
 for i = 1:length(env_lp_lpc_data)
     for j = 1:4%size(env_data{1}{1},1)
         subplot(4,1,j)
-        plot(env_lp_lpc_data{i}{1}(j,:))
+        plot(env_lp_lpc_data{i}{2}(j,:))
         legend(data_label)
         hold on
         ylabel("LPC Amplitude")
@@ -530,6 +564,7 @@ for i = 1:length(env_lp_lpc_data)
     end
 end
 
+%%
 figure
 for i = 1:length(env_lp_kurt_data)
     for j = 1:4%size(env_data{1}{1},1)
