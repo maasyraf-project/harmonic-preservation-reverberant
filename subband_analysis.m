@@ -192,20 +192,23 @@ for i = 1:length(env_data)
                 r_frame = [r_frame zeros(1, lenOverlap - length(r_frame))];
             end
 
-            test = 1;
-
-            if test%l_voiced == 1 
+            if l_voiced == 1 
                 % apply LPC on voiced segments
-                la = lpc(l_frame, 3);
+                la = lpc(l_frame, 12);
                 estl_frame = filter([0 -la(2:end)], 1, l_frame);
                 estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + estl_frame;
+            else 
+                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + l(idxStart:idxEnd);
             end
 
-            if test%r_voiced == 1 
+            if r_voiced == 1 
                 % apply LPC on voiced segments
-                ra = lpc(r_frame, 3);
+                ra = lpc(r_frame, 12);
                 estr_frame = filter([0 -ra(2:end)], 1, r_frame);
                 estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame;
+
+            else
+                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + r(idxStart:idxEnd);
             end
             
             % update index for selecting next frame
@@ -684,45 +687,6 @@ for i = 1:2%length(env_lp_data)
         ylabel("Subband Amplitude")
         if j == 6
             xlabel("Time (s)")
-        end
-    end
-end
-
-%% plot envelope (no LP filtered) of data
-data_label = ["clean speech", "low reverberant speech"];
-%data_label = ["clean speech", "high reverberant speech"];
-figure
-for i = 1:2%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(env_data{i}{1}(j,:))), env_data{i}{1}(j,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(env_data{i}{1}(j,:))), env_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Envelope Amplitude")
-        if j == 6
-            xlabel("Sample")
-        end
-    end
-end
-
-figure
-for i = 1:2%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(env_data{i}{1}(j+6,:))), env_data{i}{1}(j+6,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(env_data{i}{1}(j+6,:))), env_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Envelope Amplitude")
-        if j == 6
-            xlabel("Sample")
         end
     end
 end
