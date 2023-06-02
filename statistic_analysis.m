@@ -39,7 +39,6 @@ end
 
 len_data = length(idx_start:idx_end);
 t = 0:(1/fs):(len_data-1)/fs;
-
 %% vocoder preparation
 % parameter
 par.voc_sampling_frequency_hz = 48e3;
@@ -134,28 +133,27 @@ end
 %% fine structure subband analysis
 fine_cm_data = cell(1, length(fine_data));
 for i = 1:length(fine_data)
-    l_sub_buf = nan(size(fine_data{i}{1}));
-    r_sub_buf = nan(size(fine_data{i}{2}));
-
     % split audio into several frames
-    lenFrames = 0.03*fs;
+    lenFrames = 0.032*fs;
     lenOverlap = 0.5*lenFrames;
-    nFrames = floor(size(fine_data{i}{1},2)/(lenFrames-lenOverlap)); % the denumerator is false
+    nFrames = floor((size(fine_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+    cmOrd = 1:6;
 
-    l_vad_buf = nan(size(fine_data{i}{1},1),nFrames);
-    r_vad_buf = nan(size(fine_data{i}{2},1),nFrames);
-
+    l_sub_buf = cell(size(fine_data{i}{1}, 1), 1);
+    r_sub_buf = cell(size(fine_data{i}{2}, 1), 1);
+    
     for j = 1:size(fine_data{1}{1},1)
         l = fine_data{i}{1}(j,:);
         r = fine_data{i}{2}(j,:);
 
-        idxStart = 1;
-        idxEnd = lenFrames;
-
-        estl = zeros(size(l));
-        estr = zeros(size(r));
+        cml = zeros(length(cmOrd), nFrames);
+        cmr = zeros(length(cmOrd), nFrames);
 
         for n = 1:nFrames
+            % define start and end index
+            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+            idxEnd = idxStart + lenFrames -1;
+
             if idxEnd > length(l)
                 idxEnd = length(l);
             end
@@ -169,36 +167,25 @@ for i = 1:length(fine_data)
                 r_frame = [r_frame zeros(1, lenFrames - length(r_frame))];
             end
 
-            % calculate central moment analysis
-            %l_frame = l_frame * hamming(lenFrames);
-            %r_frame = r_frame * hamming(lenFrames);
-            
-            lm = moment(l_frame, 4)/std(l_frame)^4;
-            rm = moment(r_frame, 4)/std(r_frame)^4;
-            
-            l_frame(idxStart:idxEnd) = lm;
-            r_frame(idxStart:idxEnd) = rm;
+            for k = 1:length(cmOrd)
 
-            estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + l_frame(idxStart:idxEnd);
-            estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + r_frame(idxStart:idxEnd);
-            
-            % update index for selecting next frame
-            idxStart = idxStart + lenOverlap;
-            idxEnd = idxEnd + lenOverlap;
-            
+                lm = moment(l_frame, cmOrd(k))/std(l_frame)^cmOrd(k);
+                rm = moment(r_frame, cmOrd(k))/std(r_frame)^cmOrd(k);
+
+                cml(k,n) = lm;
+                cmr(k,n) = rm;
+
+            end
+
         end
-        
-        % recap all central moment value
-        l_sig = estl;
-        r_sig = estr;
 
         % check whether NaN data appear during processing
-        if anynan(l_sig) == 1
-            warning(strcat("NaN value appear ", string(j)))
+        if or(anynan(cml) == 1, anynan(cmr) == 1)
+            warning(strcat("NaN value appear on the channel of ", string(j)))
         end
 
-        l_sub_buf(j,:) = l_sig;
-        r_sub_buf(j,:) = r_sig;
+        l_sub_buf{j} = cml;
+        r_sub_buf{j} = cmr;
 
     end
 
@@ -207,32 +194,30 @@ for i = 1:length(fine_data)
 end
 
 
-%% envelope subband analysis
+%% envelope structure subband analysis
 env_lp_cm_data = cell(1, length(env_lp_data));
 for i = 1:length(env_lp_data)
-    l_sub_buf = nan(size(env_lp_data{i}{1}));
-    r_sub_buf = nan(size(env_lp_data{i}{2}));
-
     % split audio into several frames
-    lenFrames = 0.03*fs;
+    lenFrames = 0.032*fs;
     lenOverlap = 0.5*lenFrames;
-    nFrames = floor(size(fine_data{i}{1},2)/(lenFrames-lenOverlap));
+    nFrames = floor((size(env_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+    cmOrd = 1:6;
 
+    l_sub_buf = cell(size(env_lp_data{i}{1}, 1), 1);
+    r_sub_buf = cell(size(env_lp_data{i}{2}, 1), 1);
+    
     for j = 1:size(env_lp_data{1}{1},1)
         l = env_lp_data{i}{1}(j,:);
         r = env_lp_data{i}{2}(j,:);
 
-        idxStart = 1;
-        idxEnd = lenFrames;
-
-%         estl = kurt(l, lenFrames, 1e-6);
-%         estr = kurt(r, lenFrames, 1e-6);
-
-
-        estl = zeros(size(l));
-        estr = zeros(size(r));
+        cml = zeros(length(cmOrd), nFrames);
+        cmr = zeros(length(cmOrd), nFrames);
 
         for n = 1:nFrames
+            % define start and end index
+            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+            idxEnd = idxStart + lenFrames -1;
+
             if idxEnd > length(l)
                 idxEnd = length(l);
             end
@@ -246,36 +231,25 @@ for i = 1:length(env_lp_data)
                 r_frame = [r_frame zeros(1, lenFrames - length(r_frame))];
             end
 
-            % calculate central moment analysis
-            %l_frame = l_frame * hamming(lenFrames);
-            %r_frame = r_frame * hamming(lenFrames);
-            
-            lm = moment(l_frame, 4)/std(l_frame)^4;
-            rm = moment(r_frame, 4)/std(r_frame)^4;
-            
-            l_frame(idxStart:idxEnd) = lm;
-            r_frame(idxStart:idxEnd) = rm;
+            for k = 1:length(cmOrd)
 
-            estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + l_frame(idxStart:idxEnd);
-            estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + r_frame(idxStart:idxEnd);
-            
-            % update index for selecting next frame
-            idxStart = idxStart + lenOverlap;
-            idxEnd = idxEnd + lenOverlap;
-            
+                lm = moment(l_frame, cmOrd(k))/std(l_frame)^cmOrd(k);
+                rm = moment(r_frame, cmOrd(k))/std(r_frame)^cmOrd(k);
+
+                cml(k,n) = lm;
+                cmr(k,n) = rm;
+
+            end
+
         end
-        
-        % recap all central moment value
-        l_sig = estl;
-        r_sig = estr;
 
         % check whether NaN data appear during processing
-        if anynan(l_sig) == 1
-            warning(strcat("NaN value appear ", string(j)))
+        if or(anynan(cml) == 1, anynan(cmr) == 1)
+            warning(strcat("NaN value appear on the channel of ", string(j)))
         end
 
-        l_sub_buf(j,:) = l_sig;
-        r_sub_buf(j,:) = r_sig;
+        l_sub_buf{j} = cml;
+        r_sub_buf{j} = cmr;
 
     end
 
@@ -283,313 +257,167 @@ for i = 1:length(env_lp_data)
 
 end
 
-%% conduct LP-analysis on fine data
+%% apply LP-analysis on fine structure subband 
+fine_lp_cm_data = cell(1, length(fine_data));
 fine_lp_data = cell(1, length(fine_data));
-fine_lp_cm_data = cell(1, length(fine_lp_data));
+
 for i = 1:length(fine_data)
-    l_sub_buf = nan(size(fine_data{i}{1}));
-    r_sub_buf = nan(size(fine_data{i}{2}));
-
-    l_cm_buf = nan(size(fine_data{i}{1}));
-    r_cm_buf = nan(size(fine_data{i}{2}));
-
     % split audio into several frames
-    lenFrames = 0.03*fs;
+    lenFrames = 0.032*fs;
     lenOverlap = 0.5*lenFrames;
-    nFrames = floor(size(fine_data{i}{1},2)/(lenFrames-lenOverlap)); 
+    nFrames = floor((size(fine_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+    cmOrd = 1:6;
 
+    l_sub_buf = cell(size(fine_data{i}{1}, 1), 1);
+    r_sub_buf = cell(size(fine_data{i}{2}, 1), 1);
+
+    l_res_buf = nan(size(fine_data{i}{1}));
+    r_res_buf = nan(size(fine_data{i}{2}));
+    
     for j = 1:size(fine_data{1}{1},1)
         l = fine_data{i}{1}(j,:);
         r = fine_data{i}{2}(j,:);
 
-        idxStart = 1;
-        idxEnd = lenFrames;
+        cml = zeros(length(cmOrd), nFrames);
+        cmr = zeros(length(cmOrd), nFrames);
 
         estl = zeros(size(l));
         estr = zeros(size(r));
 
-        cml = zeros(size(l));
-        cmr = zeros(size(r));
-
         for n = 1:nFrames
+            % define start and end index
+            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+            idxEnd = idxStart + lenFrames -1;
+
             if idxEnd > length(l)
                 idxEnd = length(l);
             end
-
-            % conduct central moment analysis
+            
             l_frame = l(idxStart:idxEnd);
             r_frame = r(idxStart:idxEnd);
-            
 
-            if or(length(l_frame) < lenFrames, length(r_frame) < lenFrames)
-                l_frame = [l_frame zeros(1, lenFrames - length(l_frame))];
-                r_frame = [r_frame zeros(1, lenFrames - length(r_frame))];
-            end
-
-
-            % calculate central moment analysis
-            l_frame = hann(lenFrames)' .* l_frame ;
-            r_frame = hann(lenFrames)' .* r_frame ;
-            
+            % apply LPC
             la = lpc(l_frame, 10);
-            estl_frame = filter([0 -la(2:end)], 1, l_frame);
+            estl_frame = filter([0 -la(2:end)], 1, l_frame .* hann(length(idxStart:idxEnd))');
+            l_frame = l_frame - estl_frame;
 
             ra = lpc(r_frame, 10);
-            estr_frame = filter([0 -ra(2:end)], 1, r_frame);
-            
-            % calculate residue
-            if idxEnd == length(l)
-                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + estl_frame(1:numel(idxStart:idxEnd)) - l_frame(1:numel(idxStart:idxEnd));
-                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame(1:numel(idxStart:idxEnd)) - r_frame(1:numel(idxStart:idxEnd));
-            else
-                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + estl_frame - l_frame;
-                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame - r_frame;
+            estr_frame = filter([0 -ra(2:end)], 1, r_frame .* hann(length(idxStart:idxEnd))');
+            r_frame = r_frame - estr_frame;
+
+            % conduct central moment analysis
+            for k = 1:length(cmOrd)
+
+                lm = moment(l_frame, cmOrd(k)) / (std(l_frame)^cmOrd(k));
+                rm = moment(r_frame, cmOrd(k)) / (std(r_frame)^cmOrd(k));
+
+                cml(k,n) = lm;
+                cmr(k,n) = rm;
+
             end
-
-            % calculate center moment of frame
-            lm = moment(estl_frame, 4)/std(estl_frame)^4;
-            rm = moment(estr_frame, 4)/std(estr_frame)^4;
-
-            cml_frame = lm;
-            cmr_frame = rm;
-
-            cml(idxStart:idxEnd) = cml(idxStart:idxEnd) + cml_frame;
-            cmr(idxStart:idxEnd) = cmr(idxStart:idxEnd) + cmr_frame;
             
-            
-            % update index for selecting next frame
-            idxStart = idxStart + lenOverlap;
-            idxEnd = idxEnd + lenOverlap;
-            
+            estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
+            estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
+
         end
-        
-        % obtain residue of signal
-        l_sig = estl;
-        r_sig = estr;
-
-        cml_sig = cml;
-        cmr_sig = cmr;
 
         % check whether NaN data appear during processing
-        if anynan(l_sig) == 1
-            warning(strcat("NaN value appear ", string(j)))
+        if or(anynan(cml) == 1, anynan(cmr) == 1)
+            warning(strcat("NaN value appear on the channel of ", string(j)))
         end
 
-        l_sub_buf(j,:) = l_sig;
-        r_sub_buf(j,:) = r_sig;
+        l_sub_buf{j} = cml;
+        r_sub_buf{j} = cmr;
 
-        l_cm_buf(j,:) = cml_sig;
-        r_cm_buf(j,:) = cmr_sig;
+        l_res_buf(j,:) = estl;
+        r_res_buf(j,:) = estr;
 
     end
 
-    fine_lp_data{i} = {l_sub_buf, r_sub_buf};
-    fine_lp_cm_data{i} = {l_cm_buf, r_cm_buf};
+    fine_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
+    fine_lp_data{i} = {l_res_buf, r_res_buf};
 
 end
 
-%% conduct LP-analysis on env data
+%% apply LP-analysis on envelope structure subband 
+env_lp_lp_cm_data = cell(1, length(env_lp_data));
 env_lp_lp_data = cell(1, length(env_lp_data));
-env_lp_lp_cm_data = cell(1, length(env_lp_lp_data));
+
 for i = 1:length(env_lp_data)
-    l_sub_buf = nan(size(env_lp_data{i}{1}));
-    r_sub_buf = nan(size(env_lp_data{i}{2}));
-    
-    l_cm_buf = nan(size(fine_data{i}{1}));
-    r_cm_buf = nan(size(fine_data{i}{2}));
-
     % split audio into several frames
-    lenFrames = 0.03*fs;
+    lenFrames = 0.032*fs;
     lenOverlap = 0.5*lenFrames;
-    nFrames = floor(size(fine_data{i}{1},2)/(lenFrames-lenOverlap)); 
+    nFrames = floor((size(env_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+    cmOrd = 1:6;
 
-    for j = 1:size(fine_data{1}{1},1)
-        l = fine_data{i}{1}(j,:);
-        r = fine_data{i}{2}(j,:);
+    l_sub_buf = cell(size(env_lp_data{i}{1}, 1), 1);
+    r_sub_buf = cell(size(env_lp_data{i}{2}, 1), 1);
 
-        idxStart = 1;
-        idxEnd = lenFrames;
+    l_res_buf = nan(size(env_lp_data{i}{1}));
+    r_res_buf = nan(size(env_lp_data{i}{2}));
+    
+    for j = 1:size(env_lp_data{1}{1},1)
+        l = env_lp_data{i}{1}(j,:);
+        r = env_lp_data{i}{2}(j,:);
+
+        cml = zeros(length(cmOrd), nFrames);
+        cmr = zeros(length(cmOrd), nFrames);
 
         estl = zeros(size(l));
         estr = zeros(size(r));
 
-        cml = zeros(size(l));
-        cmr = zeros(size(r));
-
         for n = 1:nFrames
+            % define start and end index
+            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+            idxEnd = idxStart + lenFrames -1;
+
             if idxEnd > length(l)
                 idxEnd = length(l);
             end
 
-            % conduct central moment analysis
             l_frame = l(idxStart:idxEnd);
             r_frame = r(idxStart:idxEnd);
-            
 
-            if or(length(l_frame) < lenFrames, length(r_frame) < lenFrames)
-                l_frame = [l_frame zeros(1, lenFrames - length(l_frame))];
-                r_frame = [r_frame zeros(1, lenFrames - length(r_frame))];
+            % apply LPC
+            la = lpc(l_frame, 3);
+            l_frame = filter(la, 1, l_frame .* hann(length(idxStart:idxEnd))');
+
+            ra = lpc(r_frame, 3);
+            r_frame = filter(ra, 1, r_frame .* hann(length(idxStart:idxEnd))');
+
+            % conduct central moment analysis
+            for k = 1:length(cmOrd)
+
+                lm = moment(l_frame, cmOrd(k))/std(l_frame)^cmOrd(k);
+                rm = moment(r_frame, cmOrd(k))/std(r_frame)^cmOrd(k);
+
+                cml(k,n) = lm;
+                cmr(k,n) = rm;
+
             end
-
-
-            % calculate central moment analysis
-            l_frame = hann(lenFrames)' .* l_frame ;
-            r_frame = hann(lenFrames)' .* r_frame ;
             
-            la = lpc(l_frame, 10);
-            estl_frame = filter([0 -la(2:end)], 1, l_frame);
+            estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
+            estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
 
-            ra = lpc(r_frame, 10);
-            estr_frame = filter([0 -ra(2:end)], 1, r_frame);
-            
-            % calculate residue
-            if idxEnd == length(l)
-                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + estl_frame(1:numel(idxStart:idxEnd)) - l_frame(1:numel(idxStart:idxEnd));
-                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame(1:numel(idxStart:idxEnd)) - r_frame(1:numel(idxStart:idxEnd));
-            else
-                estl(idxStart:idxEnd) = estl(idxStart:idxEnd) + estl_frame - l_frame;
-                estr(idxStart:idxEnd) = estr(idxStart:idxEnd) + estr_frame - r_frame;
-            end
-
-            % calculate center moment of frame
-            lm = moment(estl_frame, 4)/std(estl_frame)^4;
-            rm = moment(estr_frame, 4)/std(estr_frame)^4;
-
-            cml_frame = lm;
-            cmr_frame = rm;
-
-            cml(idxStart:idxEnd) = cml(idxStart:idxEnd) + cml_frame;
-            cmr(idxStart:idxEnd) = cmr(idxStart:idxEnd) + cmr_frame;
-            
-            
-            % update index for selecting next frame
-            idxStart = idxStart + lenOverlap;
-            idxEnd = idxEnd + lenOverlap;
-            
         end
-        
-        % obtain residue of signal
-        l_sig = estl;
-        r_sig = estr;
-
-        cml_sig = cml;
-        cmr_sig = cmr;
 
         % check whether NaN data appear during processing
-        if anynan(l_sig) == 1
-            warning(strcat("NaN value appear ", string(j)))
+        if or(anynan(cml) == 1, anynan(cmr) == 1)
+            warning(strcat("NaN value appear on the channel of ", string(j)))
         end
 
-        l_sub_buf(j,:) = l_sig;
-        r_sub_buf(j,:) = r_sig;
+        l_sub_buf{j} = cml;
+        r_sub_buf{j} = cmr;
 
-        l_cm_buf(j,:) = cml_sig;
-        r_cm_buf(j,:) = cmr_sig;
+        l_res_buf(j,:) = estl;
+        r_res_buf(j,:) = estr;
 
     end
 
-    env_lp_lp_data{i} = {l_sub_buf, r_sub_buf};
-    env_lp_lp_cm_data{i} = {l_cm_buf, r_cm_buf};
+    env_lp_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
+    env_lp_lp_data{i} = {l_res_buf, r_res_buf};
 
 end
-
-%% implement inverse filtering to fine data
-fine_inv_data = cell(1, length(fine_data));
-for i = 1:length(fine_data)
-    l_sub_buf = nan(size(fine_data{i}{1}));
-    r_sub_buf = nan(size(fine_data{i}{2}));
-
-    % split audio into several frames
-    lenFrames = 0.03*fs;
-    lenOverlap = 0.5*lenFrames;
-    nFrames = floor(size(fine_data{i}{1},2)/(lenFrames-lenOverlap)); % the denumerator is false
-
-    % initiate filter parameter
-    nIter = 500;
-    mu = 3e-9;
-    p = lenFrames;              %filter order
-    ss = lenOverlap;            %stepsize
-    bs = ss+p-1;                  %blocksize
-    
-    gh = (1:p).';
-    gh = gh./sqrt(sum(abs(gh).^2));
-    Gh = fft([gh; zeros(ss-1,1)]);
-    
-    zkurt = zeros(niter,1);
-
-    zr2 = zeros(bs,1);
-    zr3 = zeros(bs,1);
-    zr4 = zeros(bs,1);
-
-    for j = 1:size(fine_data{1}{1},1)
-        l = fine_data{i}{1}(j,:);
-        r = fine_data{i}{2}(j,:);
-
-        idxStart = 1;
-        idxEnd = lenFrames;
-
-        estl = zeros(size(l));
-        estr = zeros(size(r));
-
-        for m = 1:nIter
-            yrn=zeros(bs,1);
-            for n = 1:nFrames
-                if idxEnd > length(l)
-                    idxEnd = length(l);
-                end
-
-                yrn(1:p-1) = yrn(end-p+2:end);
-                yrn(p:end) = l(k:k+ss-1);
-
-                Yrn=fft(yrn);
-                cYrn=conj(Yrn);
-                zrn=ifft(Gh.*Yrn);
-
-                zrn(1:p-1)=0;
-                zr2(p:end)=zrn(p:end).^2;
-                zr3(p:end)=zrn(p:end).^3;
-                zr4(p:end)=zrn(p:end).^4;
-
-                Z2=sum(zr2(p:end));
-                Z4=sum(zr4(p:end));
-
-                zkurt(m)=max(zkurt(m),Z4/(Z2^2+1e-15)*ss);
-
-                z3y=fft(zr3).*cYrn;
-                zy=fft(zrn).*cYrn;
-
-                gJ=4*(Z2*z3y-Z4*zy)/(Z2^3+1e-20)*ss;
-                Gh=Gh+mu*gJ;
-                
-                Gh=Gh./sqrt(sum(abs(Gh).^2)/bs);
-
-                % update index for selecting next frame
-                idxStart = idxStart + lenOverlap;
-                idxEnd = idxEnd + lenOverlap;
-
-            end
-        
-        end
-
-        % recap all central moment value
-        l_sig = estl;
-        r_sig = estr;
-
-        % check whether NaN data appear during processing
-        if anynan(l_sig) == 1
-            warning(strcat("NaN value appear ", string(j)))
-        end
-
-        l_sub_buf(j,:) = l_sig;
-        r_sub_buf(j,:) = r_sig;
-
-    end
-
-    fine_inv_data{i} = {l_sub_buf, r_sub_buf};
-
-end
-
-%% implement inverse filtering to env data
 
 %% plot the fine data
 data_label = ["clean speech", "low reverberant speech"];
@@ -634,13 +462,16 @@ end
 data_label = ["clean speech", "low reverberant speech"];
 %data_label = ["clean speech", "high reverberant speech"];
 figure
+chan = 1;
+cm = 4;
+t_frames = linspace(0, length(fine_lp_data{1}{1})/fs, nFrames);
 for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(fine_cm_data{i}{1}(j,:))), fine_cm_data{i}{1}(j,:), "Color", [0 0 0 1])
+            plot(t(1:length(fine_cm_data{i}{chan}{j}(cm,:))), fine_cm_data{i}{chan}{j}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(fine_cm_data{i}{1}(j,:))), fine_cm_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t(1:length(fine_cm_data{i}{chan}{j}(cm,:))), fine_cm_data{i}{chan}{j}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -656,9 +487,9 @@ for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(fine_cm_data{i}{1}(j+6,:))), fine_cm_data{i}{1}(j+6,:), "Color", [0 0 0 1])
+            plot(t(1:length(fine_cm_data{i}{chan}{j+6}(cm,:))), fine_cm_data{i}{chan}{j+6}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(fine_cm_data{i}{1}(j+6,:))), fine_cm_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t(1:length(fine_cm_data{i}{chan}{j+6}(cm,:))), fine_cm_data{i}{chan}{j+6}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -709,16 +540,19 @@ for i = 1:2%length(env_lp_data)
 end
 
 %% plot the kurtosis of LP of fine data
-% data_label = ["clean speech", "low reverberant speech"];
-data_label = ["clean speech", "high reverberant speech"];
+data_label = ["clean speech", "low reverberant speech"];
+%data_label = ["clean speech", "high reverberant speech"];
+chan = 1;
+cm = 4;
+t_frames = linspace(0, length(fine_lp_data{1}{1})/fs, nFrames);
 figure
-for i = 1:2:3%length(env_lp_data)
+for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(fine_lp_cm_data{i}{1}(j,:))), fine_lp_cm_data{i}{1}(j,:), "Color", [0 0 0 1])
+            plot(t_frames(1:length(fine_lp_cm_data{i}{chan}{j}(cm,:))), fine_lp_cm_data{i}{chan}{j}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(fine_lp_cm_data{i}{1}(j,:))), fine_lp_cm_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t_frames(1:length(fine_lp_cm_data{i}{chan}{j}(cm,:))), fine_lp_cm_data{i}{chan}{j}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -730,13 +564,13 @@ for i = 1:2:3%length(env_lp_data)
 end
 
 figure
-for i = 1:2:3%length(env_lp_data)
+for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(fine_lp_cm_data{i}{1}(j+6,:))), fine_lp_cm_data{i}{1}(j+6,:), "Color", [0 0 0 1])
+            plot(t_frames(1:length(fine_lp_cm_data{i}{chan}{j}(cm,:))), fine_lp_cm_data{i}{chan}{j+6}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(fine_lp_cm_data{i}{1}(j+6,:))), fine_lp_cm_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t_frames(1:length(fine_lp_cm_data{i}{chan}{j}(cm,:))), fine_lp_cm_data{i}{chan}{j+6}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -794,9 +628,9 @@ for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(env_lp_cm_data{i}{1}(j,:))), env_lp_cm_data{i}{1}(j,:), "Color", [0 0 0 1])
+            plot(t(1:length(env_lp_cm_data{i}{chan}{j}(cm,:))), env_lp_cm_data{i}{chan}{j}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(env_lp_cm_data{i}{1}(j,:))), env_lp_cm_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t(1:length(env_lp_cm_data{i}{chan}{j}(cm,:))), env_lp_cm_data{i}{chan}{j}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -812,9 +646,9 @@ for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(env_lp_cm_data{i}{1}(j+6,:))), env_lp_cm_data{i}{1}(j+6,:), "Color", [0 0 0 1])
+            plot(t(1:length(env_lp_cm_data{i}{chan}{j+6}(cm,:))), env_lp_cm_data{i}{chan}{j+6}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(env_lp_cm_data{i}{1}(j+6,:))), env_lp_cm_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t(1:length(env_lp_cm_data{i}{chan}{j+6}(cm,:))), env_lp_cm_data{i}{chan}{j+6}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -864,17 +698,21 @@ for i = 1:2%length(env_lp_data)
     end
 end
 
-%% plot the kurtosis of LP of env data
+
+%% plot the kurtosis of LP of fine data
 data_label = ["clean speech", "low reverberant speech"];
 %data_label = ["clean speech", "high reverberant speech"];
+chan = 1;
+cm = 4;
+t_frames = linspace(0, length(env_lp_data{1}{1})/fs, nFrames);
 figure
-for i = 1:2%length(env_lp_data)
+for i = 1:2:3%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(env_lp_lp_cm_data{i}{1}(j,:))), env_lp_lp_cm_data{i}{1}(j,:), "Color", [0 0 0 1])
+            plot(t_frames(1:length(env_lp_lp_cm_data{i}{chan}{j}(cm,:))), env_lp_lp_cm_data{i}{chan}{j}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(env_lp_lp_cm_data{i}{1}(j,:))), env_lp_lp_cm_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t_frames(1:length(env_lp_lp_cm_data{i}{chan}{j}(cm,:))), env_lp_lp_cm_data{i}{chan}{j}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
@@ -886,13 +724,13 @@ for i = 1:2%length(env_lp_data)
 end
 
 figure
-for i = 1:2%length(env_lp_data)
+for i = 1:2:3%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
-            plot(t(1:length(env_lp_lp_cm_data{i}{1}(j+6,:))), env_lp_lp_cm_data{i}{1}(j+6,:), "Color", [0 0 0 1])
+            plot(t_frames(1:length(env_lp_lp_cm_data{i}{chan}{j}(cm,:))), env_lp_lp_cm_data{i}{chan}{j+6}(cm,:), "Color", [0 0 0 1])
         else
-            plot(t(1:length(env_lp_lp_cm_data{i}{1}(j+6,:))), env_lp_lp_cm_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
+            plot(t_frames(1:length(env_lp_lp_cm_data{i}{chan}{j}(cm,:))), env_lp_lp_cm_data{i}{chan}{j+6}(cm,:), "Color", [0.5 0.5 0.5 0.8])
         end
         legend(data_label)
         hold on
