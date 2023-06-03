@@ -468,11 +468,13 @@ for n = 1:length(audioInputNamesNew)
     t_frames = linspace(0, length(env_lp_data{1}{1})/fs, nFrames);
 
     %% save the variable's values
-    dataFilename = strcat(audioFilename(1:end-4), ".mat"); 
-    save(fullfile(resultsDir, dataFilename), "raw_data", "cmOrd", "fs", "an_data","env_data", "rms_env_data", "env_lp_data", "env_lp_cm_data", "env_lp_lp_data", "env_lp_lp_cm_data", "fine_data", "fine_cm_data", "fine_lp_data", "fine_lp_cm_data", "t", "t_frames")
+    audioName = erase(audioFilename, '.wav');
+    dataFilename = strcat(audioName, ".mat"); 
+    save(fullfile(resultsDir, dataFilename), "cmOrd", "fs", "an_data","env_data", "rms_env_data", "env_lp_data", "env_lp_cm_data", "env_lp_lp_data", "env_lp_lp_cm_data", "fine_data", "fine_cm_data", "fine_lp_data", "fine_lp_cm_data", "t", "t_frames")
     
     toc
     %% notification
     disp(strcat("Succesfully save : ", dataFilename))
+    disp(" ")
 
 end
