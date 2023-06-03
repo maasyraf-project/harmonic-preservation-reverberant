@@ -26,6 +26,10 @@ resultsFilenames = resultsFilenames(1:9*numSentences);
 
 degree = ["0", "30", "45", "60", "90", "min30", "min45", "min60", "min90"];
 
+fine_statistic = cell(1, length(degree)); % the structure is degree - sentence - room - channel - subband
+fine_lp_statistic = cell(1, length(degree));
+env_statistic = cell(1, length(degree));
+env_lp_statistic = cell(1, length(degree));
 
 for d = 1:length(degree)
 
@@ -34,7 +38,8 @@ for d = 1:length(degree)
     ENV = cell(1, numSentences);
     ENV_LP = cell(1, numSentences);
 
-    for i = d:9:length(resultsFilenames)
+    idx = 1;
+    for i = d:9:length(resultsFilenames) % indicator for sentences
         load(resultsFilenames(i).name)
         disp(strcat("Processing ", resultsFilenames(i).name));
 
@@ -43,7 +48,7 @@ for d = 1:length(degree)
         env = cell(1, 5);
         env_lp = cell(1, 5);
 
-        for j = 1:5
+        for j = 1:5 % indicator for numbers of room 
 
             l_fine = cell(12, 1);
             r_fine = cell(12, 1);
@@ -57,7 +62,7 @@ for d = 1:length(degree)
             l_env_lp = cell(12, 1);
             r_env_lp = cell(12, 1);
 
-            for k = 1:12
+            for k = 1:12 % indicator for numbers of channel
                 % obtain mean across channel
                 lcm_fine = mean(fine_cm_data{j}{1}{k}, 2);
                 rcm_fine = mean(fine_cm_data{j}{2}{k}, 2);
@@ -93,16 +98,23 @@ for d = 1:length(degree)
 
         end
 
-        FINE{i} = fine;
-        FINE_LP{i} = fine_lp;
-        ENV{i} = env;
-        ENV_LP{i} = env_lp;
+        FINE{idx} = fine;
+        FINE_LP{idx} = fine_lp;
+        ENV{idx} = env;
+        ENV_LP{idx} = env_lp;
+
+        idx = idx + 1;
 
     end
 
+    fine_statistic{d} = FINE;
+    fine_lp_statistic{d} = FINE_LP;
+    env_statistic{d} = ENV;
+    env_lp_statistic{d} = ENV_LP;
+
     % save the variable
     dataName = strcat(string(numSentences), "_", degree(d), ".mat");
-    save(fullfile(saveDir, dataName), "FINE", "FINE_LP", "ENV", "ENV_LP");
+    save(fullfile(saveDir, dataName), "fine_statistic", "fine_lp_statistic", "env_statistic", "env_lp_statistic");
     disp(strcat("Saving ... ", dataName));
     disp(" ")
 
