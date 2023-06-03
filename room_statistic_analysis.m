@@ -112,10 +112,12 @@ for d = 1:length(degree)
     env_statistic{d} = ENV;
     env_lp_statistic{d} = ENV_LP;
 
-    % save the variable
-    dataName = strcat(string(numSentences), "_", degree(d), ".mat");
-    save(fullfile(saveDir, dataName), "fine_statistic", "fine_lp_statistic", "env_statistic", "env_lp_statistic");
-    disp(strcat("Saving ... ", dataName));
-    disp(" ")
+    disp(strcat("Completing processing data for sound comes from ", degree(d)));
 
 end
+
+% save the variable
+dataName = strcat("room_data", ".mat");
+save(fullfile(saveDir, dataName), "fine_statistic", "fine_lp_statistic", "env_statistic", "env_lp_statistic");
+disp(strcat("Saving ... ", dataName));
+disp(" ")
