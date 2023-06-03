@@ -2,3 +2,5 @@
 *.asv
 
 additional-packages/
+stimuli/
+results/
