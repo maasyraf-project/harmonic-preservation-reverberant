@@ -543,8 +543,8 @@ end
 data_label = ["clean speech", "low reverberant speech"];
 %data_label = ["clean speech", "high reverberant speech"];
 chan = 1;
-cm = 4;
-%t_frames = linspace(0, length(fine_lp_data{1}{1})/fs, nFrames);
+cm = 5;
+t_frames = linspace(0, length(fine_lp_data{1}{1})/fs, nFrames);
 figure
 for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
@@ -703,7 +703,7 @@ end
 data_label = ["clean speech", "low reverberant speech"];
 %data_label = ["clean speech", "high reverberant speech"];
 chan = 1;
-cm = 4;
+cm = 5;
 t_frames = linspace(0, length(env_lp_data{1}{1})/fs, nFrames);
 figure
 for i = 1:2:3%length(env_lp_data)
@@ -740,3 +740,230 @@ for i = 1:2:3%length(env_lp_data)
         end
     end
 end
+
+%% customized plot
+% fine low-rev
+figure
+subplot(3,2,1)
+plot(t(1:length(fine_data{1}{1}(1,:))), fine_data{1}{1}(1,:), "Color", [0 0 0 1])
+hold on 
+plot(t(1:length(fine_data{2}{1}(1,:))), fine_data{2}{1}(1,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+ylim([-0.02 0.02])
+title("Fine Structure of Subband (Left Channel)")
+
+subplot(3,2,2)
+plot(t(1:length(fine_data{1}{2}(1,:))), fine_data{1}{2}(1,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{2}(1,:))), fine_data{2}{2}(1,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+ylim([-0.02 0.02])
+title("Fine Structure of Subband (Right Channel)")
+
+subplot(3,2,3)
+plot(t(1:length(fine_data{1}{1}(2,:))), fine_data{1}{1}(2,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{1}(2,:))), fine_data{2}{1}(2,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+ylim([-0.02 0.02])
+
+subplot(3,2,4)
+plot(t(1:length(fine_data{1}{2}(2,:))), fine_data{1}{2}(2,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{2}(2,:))), fine_data{2}{2}(2,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+ylim([-0.02 0.02])
+
+subplot(3,2,5)
+plot(t(1:length(fine_data{1}{1}(3,:))), fine_data{1}{1}(3,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{1}(3,:))), fine_data{2}{1}(3,:), "Color", [0.5 0.5 0.5 0.4])
+xlabel("Time (s)")
+ylabel("Amplitude")
+ylim([-0.02 0.02])
+
+subplot(3,2,6)
+plot(t(1:length(fine_data{1}{2}(3,:))), fine_data{i}{2}(3,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{2}(3,:))), fine_data{2}{2}(3,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+xlabel("Time (s)")
+ylim([-0.02 0.02])
+
+%% customized plot
+% env_lp high-rev
+figure
+subplot(3,2,1)
+plot(t(1:length(env_lp_data{1}{1}(1,:))), env_lp_data{1}{1}(1,:), "Color", [0 0 0 1])
+hold on 
+plot(t(1:length(env_lp_data{2}{1}(1,:))), env_lp_data{2}{1}(1,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+%ylim([0 0.01])
+title("Envelope Structure of Subband (Left Channel)")
+
+subplot(3,2,2)
+plot(t(1:length(env_lp_data{1}{2}(1,:))), env_lp_data{1}{2}(1,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(env_lp_data{2}{2}(1,:))), env_lp_data{2}{2}(1,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+%ylim([0 0.01])
+title("Envelope Structure of Subband (Right Channel)")
+
+subplot(3,2,3)
+plot(t(1:length(env_lp_data{1}{1}(2,:))), env_lp_data{1}{1}(2,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(env_lp_data{2}{1}(2,:))), env_lp_data{2}{1}(2,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+%ylim([0 0.02])
+
+subplot(3,2,4)
+plot(t(1:length(env_lp_data{1}{2}(2,:))), env_lp_data{1}{2}(2,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(env_lp_data{2}{2}(2,:))), env_lp_data{2}{2}(2,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+%ylim([0 0.02])
+
+subplot(3,2,5)
+plot(t(1:length(env_lp_data{1}{1}(3,:))), env_lp_data{1}{1}(3,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(env_lp_data{2}{1}(3,:))), env_lp_data{2}{1}(3,:), "Color", [0.5 0.5 0.5 0.4])
+xlabel("Time (s)")
+ylabel("Amplitude")
+%ylim([0 0.02])
+
+subplot(3,2,6)
+plot(t(1:length(env_lp_data{1}{2}(3,:))), env_lp_data{i}{2}(3,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(env_lp_data{2}{2}(3,:))), env_lp_data{2}{2}(3,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+xlabel("Time (s)")
+%ylim([0 0.02])
+
+%% customized plot
+% env_lp high-rev
+cm = 6;
+t_frames = linspace(0, length(env_lp_data{1}{1})/fs, nFrames);
+figure
+subplot(3,2,1)
+plot(t_frames(1:length(env_lp_lp_cm_data{1}{1}{1}(cm,:))), env_lp_lp_cm_data{1}{1}{1}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(env_lp_lp_cm_data{2}{1}{1}(cm,:))), env_lp_lp_cm_data{2}{1}{1}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(env_lp_lp_cm_data{3}{1}{1}(cm,:))), env_lp_lp_cm_data{3}{1}{1}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.01])
+title("High Order Statistic (HOS) of Subband (Left Channel)")
+
+subplot(3,2,2)
+plot(t_frames(1:length(env_lp_lp_cm_data{1}{2}{1}(cm,:))), env_lp_lp_cm_data{1}{2}{1}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(env_lp_lp_cm_data{2}{2}{1}(cm,:))), env_lp_lp_cm_data{2}{2}{1}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(env_lp_lp_cm_data{3}{2}{1}(cm,:))), env_lp_lp_cm_data{3}{2}{1}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.01])
+title("High Order Statistic (HOS) Structure of Subband (Right Channel)")
+
+subplot(3,2,3)
+plot(t_frames(1:length(env_lp_lp_cm_data{1}{1}{2}(cm,:))), env_lp_lp_cm_data{1}{1}{2}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(env_lp_lp_cm_data{2}{1}{2}(cm,:))), env_lp_lp_cm_data{2}{1}{2}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(env_lp_lp_cm_data{3}{1}{2}(cm,:))), env_lp_lp_cm_data{3}{1}{2}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.02])
+
+subplot(3,2,4)
+plot(t_frames(1:length(env_lp_lp_cm_data{1}{2}{2}(cm,:))), env_lp_lp_cm_data{1}{2}{2}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(env_lp_lp_cm_data{2}{2}{2}(cm,:))), env_lp_lp_cm_data{2}{2}{2}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(env_lp_lp_cm_data{3}{2}{2}(cm,:))), env_lp_lp_cm_data{3}{2}{2}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.02])
+
+subplot(3,2,5)
+plot(t_frames(1:length(env_lp_lp_cm_data{1}{1}{3}(cm,:))), env_lp_lp_cm_data{1}{1}{3}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(env_lp_lp_cm_data{2}{1}{3}(cm,:))), env_lp_lp_cm_data{2}{1}{3}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(env_lp_lp_cm_data{3}{1}{3}(cm,:))), env_lp_lp_cm_data{3}{1}{3}(cm,:), "Color", 'blue')
+xlabel("Time (s)")
+ylabel("Value")
+%ylim([0 0.02])
+
+subplot(3,2,6)
+plot(t_frames(1:length(env_lp_lp_cm_data{1}{2}{3}(cm,:))), env_lp_lp_cm_data{1}{2}{3}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(env_lp_lp_cm_data{2}{2}{3}(cm,:))), env_lp_lp_cm_data{2}{2}{3}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(env_lp_lp_cm_data{3}{2}{3}(cm,:))), env_lp_lp_cm_data{3}{2}{3}(cm,:), "Color", 'blue')
+ylabel("Value")
+xlabel("Time (s)")
+%ylim([0 0.02])
+
+%% customized plot
+% fine high-rev
+cm = 3;
+t_frames = linspace(0, length(fine_data{1}{1})/fs, nFrames);
+figure
+subplot(3,2,1)
+plot(t_frames(1:length(fine_lp_cm_data{1}{1}{1}(cm,:))), fine_lp_cm_data{1}{1}{1}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(fine_lp_cm_data{2}{1}{1}(cm,:))), fine_lp_cm_data{2}{1}{1}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(fine_lp_cm_data{3}{1}{1}(cm,:))), fine_lp_cm_data{3}{1}{1}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.01])
+title("High Order Statistic (HOS) of Subband (Left Channel)")
+
+subplot(3,2,2)
+plot(t_frames(1:length(fine_lp_cm_data{1}{2}{1}(cm,:))), fine_lp_cm_data{1}{2}{1}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(fine_lp_cm_data{2}{2}{1}(cm,:))), fine_lp_cm_data{2}{2}{1}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(fine_lp_cm_data{3}{2}{1}(cm,:))), fine_lp_cm_data{3}{2}{1}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.01])
+title("High Order Statistic (HOS) Structure of Subband (Right Channel)")
+
+subplot(3,2,3)
+plot(t_frames(1:length(fine_lp_cm_data{1}{1}{2}(cm,:))), fine_lp_cm_data{1}{1}{2}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(fine_lp_cm_data{2}{1}{2}(cm,:))), fine_lp_cm_data{2}{1}{2}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(fine_lp_cm_data{3}{1}{2}(cm,:))), fine_lp_cm_data{3}{1}{2}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.02])
+
+subplot(3,2,4)
+plot(t_frames(1:length(fine_lp_cm_data{1}{2}{2}(cm,:))), fine_lp_cm_data{1}{2}{2}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(fine_lp_cm_data{2}{2}{2}(cm,:))), fine_lp_cm_data{2}{2}{2}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(fine_lp_cm_data{3}{2}{2}(cm,:))), fine_lp_cm_data{3}{2}{2}(cm,:), "Color", 'blue')
+ylabel("Value")
+%ylim([0 0.02])
+
+subplot(3,2,5)
+plot(t_frames(1:length(fine_lp_cm_data{1}{1}{3}(cm,:))), fine_lp_cm_data{1}{1}{3}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(fine_lp_cm_data{2}{1}{3}(cm,:))), fine_lp_cm_data{2}{1}{3}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(fine_lp_cm_data{3}{1}{3}(cm,:))), fine_lp_cm_data{3}{1}{3}(cm,:), "Color", 'blue')
+xlabel("Time (s)")
+ylabel("Value")
+%ylim([0 0.02])
+
+subplot(3,2,6)
+plot(t_frames(1:length(fine_lp_cm_data{1}{2}{3}(cm,:))), fine_lp_cm_data{1}{2}{3}(cm,:), "Color", 'black')
+hold on 
+plot(t_frames(1:length(fine_lp_cm_data{2}{2}{3}(cm,:))), fine_lp_cm_data{2}{2}{3}(cm,:), "Color", 'red')
+hold on
+plot(t_frames(1:length(fine_lp_cm_data{3}{2}{3}(cm,:))), fine_lp_cm_data{3}{2}{3}(cm,:), "Color", 'blue')
+ylabel("Value")
+xlabel("Time (s)")
+%ylim([0 0.02])
+
+
+

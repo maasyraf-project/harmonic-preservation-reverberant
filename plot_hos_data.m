@@ -28,21 +28,21 @@ degree = ["0", "30", "45", "60", "90", "min30", "min45", "min60", "min90"];
 room = ["Anechoic", "Room A", "Room B", "Room C", "Room D"];
 
 %% plot kurtosis data
-for deg = 1%:length(degree)
+for deg = 9%:length(degree)
     lowfig = figure;
     highfig = figure;
     for i = 1:length(hosDataFilenames)
         hosDataName = strcat(pwd,'\results\room_statistical_analysis\', hosDataFilenames{i});
         load(hosDataName)
-        data = kurtosis_data;
+        data = hexakikurtosis_data;
 
-        for j = 1:12
+        for j = 1:3
             l = data{deg}{1}(j,:);
             r = data{deg}{2}(j,:);
             
             if j <= 6
                 set(0, "CurrentFigure", lowfig)
-                subplot(6,2,j+(j-1))
+                subplot(3,2,j+(j-1))
                 plot(l, "-x", "MarkerSize", 5)
                 ylabel("Value")
                 hold on
@@ -55,14 +55,14 @@ for deg = 1%:length(degree)
                     set(gca, 'Position', axP)
                 end
 
-                if j+(j-1) == 11
+                if j+(j-1) == 5
                     xticklabels(room)
                 else
                     xticklabels(["","","","",""])
                 end
                 
 
-                subplot(6,2,2*j)
+                subplot(3,2,2*j)
                 plot(r, "-x", "MarkerSize", 5)
                 ylabel("Value")
                 hold on
@@ -75,7 +75,7 @@ for deg = 1%:length(degree)
                     set(gca, 'Position', axP)
                 end
 
-                if 2*j == 12
+                if 2*j == 6
                     xticklabels(room)
                 else
                     xticklabels(["","","","",""])
