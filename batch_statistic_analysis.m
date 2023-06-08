@@ -22,7 +22,7 @@ end
 % extract statistical information
 audioRoomDir = dir(refDir);
 audioInputNames = dir(fullfile(audioRoomDir(1).folder, audioRoomDir(3).name, '*.wav'));
-audioInputNames = audioInputNames(1:length(audioInputNames)/2);
+audioInputNames = audioInputNames(1:length(audioInputNames)/4);
 
 % select just certain files based on several degree(s)
 audioInputNamesNew = {};
@@ -33,8 +33,8 @@ for n = 1:length(audioInputNames)
     end
 end
 
-for n = 1:length(audioInputNamesNew)
-    audioFilename = string(audioInputNamesNew(n));
+for f = 1:length(audioInputNamesNew)
+    audioFilename = string(audioInputNamesNew(f));
     disp(strcat("Processing : ", audioFilename))
     
     audioIdentifier = strsplit(audioFilename, '_');
@@ -112,6 +112,54 @@ for n = 1:length(audioInputNamesNew)
         fs = par.voc_sampling_frequency_hz;
         max_len_data = max([length(pe_data{1}), length(pe_data{2}), length(pe_data{3})]);
         t = 0:(1/fs):(max_len_data-1)/fs;
+    end
+
+    %% apply full band LP analysis
+    % split audio into several frames
+    for i = 1:length(pe_data)
+        lenFrames = 0.032*fs;
+        lenOverlap = 0.5*lenFrames;
+        nFrames = floor((length(pe_data{i}(:,1)) - lenOverlap)/lenOverlap) + 1;
+
+        estl = zeros(1, length(pe_data{i}(:,1)));
+        estr = zeros(1, length(pe_data{i}(:,1)));
+        yresl = zeros(1, length(pe_data{i}(:,1)));
+        yresr = zeros(1, length(pe_data{i}(:,1)));
+
+        l = pe_data{i}(:,1);
+        r = pe_data{i}(:,2);
+
+        for n = 1:nFrames
+            % define start and end index
+            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+            idxEnd = idxStart + lenFrames -1;
+
+            if idxEnd > length(pe_data{i}(:,1))
+                idxEnd = length(pe_data{i}(:,1));
+            end
+
+            l_frame = l(idxStart:idxEnd);
+            r_frame = r(idxStart:idxEnd);
+
+            % apply LPC on left channel
+            la = lpc(l_frame, 12);
+            estl_frame = filter([0 -la(2:end)], 1, l_frame);
+            resl_frame = l_frame - estl_frame;
+
+            estl(idxStart:idxEnd) = estl_frame;
+            yresl(idxStart:idxEnd) = resl_frame;
+
+            % apply LPC on right channel
+            ra = lpc(r_frame, 12);
+            estr_frame = filter([0 -ra(2:end)], 1, r_frame);
+            resr_frame = r_frame - estr_frame;
+
+            estr(idxStart:idxEnd) = estr_frame;
+            yresr(idxStart:idxEnd) = resr_frame;
+
+        end
+
+        pe_data{i} = [yresl', yresr'];
     end
 
     %% decompose into subband
@@ -302,167 +350,168 @@ for n = 1:length(audioInputNamesNew)
 
     end
 
-    %% apply LP-analysis on fine structure subband
-    fine_lp_cm_data = cell(1, length(fine_data));
-    fine_lp_data = cell(1, length(fine_data));
-
-    for i = 1:length(fine_data)
-        % split audio into several frames
-        lenFrames = 0.032*fs;
-        lenOverlap = 0.5*lenFrames;
-        nFrames = floor((size(fine_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
-        cmOrd = 1:6;
-
-        l_sub_buf = cell(size(fine_data{i}{1}, 1), 1);
-        r_sub_buf = cell(size(fine_data{i}{2}, 1), 1);
-
-        l_res_buf = nan(size(fine_data{i}{1}));
-        r_res_buf = nan(size(fine_data{i}{2}));
-
-        for j = 1:size(fine_data{1}{1},1)
-            l = fine_data{i}{1}(j,:);
-            r = fine_data{i}{2}(j,:);
-
-            cml = zeros(length(cmOrd), nFrames);
-            cmr = zeros(length(cmOrd), nFrames);
-
-            estl = zeros(size(l));
-            estr = zeros(size(r));
-
-            for n = 1:nFrames
-                % define start and end index
-                idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
-                idxEnd = idxStart + lenFrames -1;
-
-                if idxEnd > length(l)
-                    idxEnd = length(l);
-                end
-
-                l_frame = l(idxStart:idxEnd);
-                r_frame = r(idxStart:idxEnd);
-
-                % apply LPC
-                la = lpc(l_frame, 10);
-                estl_frame = filter([0 -la(2:end)], 1, l_frame .* hann(length(idxStart:idxEnd))');
-                l_frame = l_frame - estl_frame;
-
-                ra = lpc(r_frame, 10);
-                estr_frame = filter([0 -ra(2:end)], 1, r_frame .* hann(length(idxStart:idxEnd))');
-                r_frame = r_frame - estr_frame;
-
-                % conduct central moment analysis
-                for k = 1:length(cmOrd)
-
-                    lm = moment(l_frame, cmOrd(k)) / (std(l_frame)^cmOrd(k));
-                    rm = moment(r_frame, cmOrd(k)) / (std(r_frame)^cmOrd(k));
-
-                    cml(k,n) = lm;
-                    cmr(k,n) = rm;
-
-                end
-
-                estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
-                estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
-
-            end
-
-            % check whether NaN data appear during processing
-            if or(anynan(cml) == 1, anynan(cmr) == 1)
-                warning(strcat("NaN value appear on the channel of ", string(j)))
-            end
-
-            l_sub_buf{j} = cml;
-            r_sub_buf{j} = cmr;
-
-            l_res_buf(j,:) = estl;
-            r_res_buf(j,:) = estr;
-
-        end
-
-        fine_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
-        fine_lp_data{i} = {l_res_buf, r_res_buf};
-
-    end
-
-    %% apply LP-analysis on envelope structure subband
-    env_lp_lp_cm_data = cell(1, length(env_lp_data));
-    env_lp_lp_data = cell(1, length(env_lp_data));
-
-    for i = 1:length(env_lp_data)
-        % split audio into several frames
-        lenFrames = 0.032*fs;
-        lenOverlap = 0.5*lenFrames;
-        nFrames = floor((size(env_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
-        cmOrd = 1:6;
-
-        l_sub_buf = cell(size(env_lp_data{i}{1}, 1), 1);
-        r_sub_buf = cell(size(env_lp_data{i}{2}, 1), 1);
-
-        l_res_buf = nan(size(env_lp_data{i}{1}));
-        r_res_buf = nan(size(env_lp_data{i}{2}));
-
-        for j = 1:size(env_lp_data{1}{1},1)
-            l = env_lp_data{i}{1}(j,:);
-            r = env_lp_data{i}{2}(j,:);
-
-            cml = zeros(length(cmOrd), nFrames);
-            cmr = zeros(length(cmOrd), nFrames);
-
-            estl = zeros(size(l));
-            estr = zeros(size(r));
-
-            for n = 1:nFrames
-                % define start and end index
-                idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
-                idxEnd = idxStart + lenFrames -1;
-
-                if idxEnd > length(l)
-                    idxEnd = length(l);
-                end
-
-                l_frame = l(idxStart:idxEnd);
-                r_frame = r(idxStart:idxEnd);
-
-                % apply LPC
-                la = lpc(l_frame, 3);
-                l_frame = filter(la, 1, l_frame .* hann(length(idxStart:idxEnd))');
-
-                ra = lpc(r_frame, 3);
-                r_frame = filter(ra, 1, r_frame .* hann(length(idxStart:idxEnd))');
-
-                % conduct central moment analysis
-                for k = 1:length(cmOrd)
-
-                    lm = moment(l_frame, cmOrd(k))/std(l_frame)^cmOrd(k);
-                    rm = moment(r_frame, cmOrd(k))/std(r_frame)^cmOrd(k);
-
-                    cml(k,n) = lm;
-                    cmr(k,n) = rm;
-
-                end
-
-                estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
-                estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
-
-            end
-
-            % check whether NaN data appear during processing
-            if or(anynan(cml) == 1, anynan(cmr) == 1)
-                warning(strcat("NaN value appear on the channel of ", string(j)))
-            end
-
-            l_sub_buf{j} = cml;
-            r_sub_buf{j} = cmr;
-
-            l_res_buf(j,:) = estl;
-            r_res_buf(j,:) = estr;
-
-        end
-
-        env_lp_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
-        env_lp_lp_data{i} = {l_res_buf, r_res_buf};
-
-    end
+% 
+%     %% apply LP-analysis on fine structure subband
+%     fine_lp_cm_data = cell(1, length(fine_data));
+%     fine_lp_data = cell(1, length(fine_data));
+% 
+%     for i = 1:length(fine_data)
+%         % split audio into several frames
+%         lenFrames = 0.032*fs;
+%         lenOverlap = 0.5*lenFrames;
+%         nFrames = floor((size(fine_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+%         cmOrd = 1:6;
+% 
+%         l_sub_buf = cell(size(fine_data{i}{1}, 1), 1);
+%         r_sub_buf = cell(size(fine_data{i}{2}, 1), 1);
+% 
+%         l_res_buf = nan(size(fine_data{i}{1}));
+%         r_res_buf = nan(size(fine_data{i}{2}));
+% 
+%         for j = 1:size(fine_data{1}{1},1)
+%             l = fine_data{i}{1}(j,:);
+%             r = fine_data{i}{2}(j,:);
+% 
+%             cml = zeros(length(cmOrd), nFrames);
+%             cmr = zeros(length(cmOrd), nFrames);
+% 
+%             estl = zeros(size(l));
+%             estr = zeros(size(r));
+% 
+%             for n = 1:nFrames
+%                 % define start and end index
+%                 idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+%                 idxEnd = idxStart + lenFrames -1;
+% 
+%                 if idxEnd > length(l)
+%                     idxEnd = length(l);
+%                 end
+% 
+%                 l_frame = l(idxStart:idxEnd);
+%                 r_frame = r(idxStart:idxEnd);
+% 
+%                 % apply LPC
+%                 la = lpc(l_frame, 12);
+%                 estl_frame = filter([0 -la(2:end)], 1, l_frame);
+%                 l_frame = l_frame - estl_frame;
+% 
+%                 ra = lpc(r_frame, 12);
+%                 estr_frame = filter([0 -ra(2:end)], 1, r_frame);
+%                 r_frame = r_frame - estr_frame;
+% 
+%                 % conduct central moment analysis
+%                 for k = 1:length(cmOrd)
+% 
+%                     lm = moment(l_frame, cmOrd(k)) / (std(l_frame)^cmOrd(k));
+%                     rm = moment(r_frame, cmOrd(k)) / (std(r_frame)^cmOrd(k));
+% 
+%                     cml(k,n) = lm;
+%                     cmr(k,n) = rm;
+% 
+%                 end
+% 
+%                 estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
+%                 estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
+% 
+%             end
+% 
+%             % check whether NaN data appear during processing
+%             if or(anynan(cml) == 1, anynan(cmr) == 1)
+%                 warning(strcat("NaN value appear on the channel of ", string(j)))
+%             end
+% 
+%             l_sub_buf{j} = cml;
+%             r_sub_buf{j} = cmr;
+% 
+%             l_res_buf(j,:) = estl;
+%             r_res_buf(j,:) = estr;
+% 
+%         end
+% 
+%         fine_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
+%         fine_lp_data{i} = {l_res_buf, r_res_buf};
+% 
+%     end
+% 
+%     %% apply LP-analysis on envelope structure subband
+%     env_lp_lp_cm_data = cell(1, length(env_lp_data));
+%     env_lp_lp_data = cell(1, length(env_lp_data));
+% 
+%     for i = 1:length(env_lp_data)
+%         % split audio into several frames
+%         lenFrames = 0.032*fs;
+%         lenOverlap = 0.5*lenFrames;
+%         nFrames = floor((size(env_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+%         cmOrd = 1:6;
+% 
+%         l_sub_buf = cell(size(env_lp_data{i}{1}, 1), 1);
+%         r_sub_buf = cell(size(env_lp_data{i}{2}, 1), 1);
+% 
+%         l_res_buf = nan(size(env_lp_data{i}{1}));
+%         r_res_buf = nan(size(env_lp_data{i}{2}));
+% 
+%         for j = 1:size(env_lp_data{1}{1},1)
+%             l = env_lp_data{i}{1}(j,:);
+%             r = env_lp_data{i}{2}(j,:);
+% 
+%             cml = zeros(length(cmOrd), nFrames);
+%             cmr = zeros(length(cmOrd), nFrames);
+% 
+%             estl = zeros(size(l));
+%             estr = zeros(size(r));
+% 
+%             for n = 1:nFrames
+%                 % define start and end index
+%                 idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+%                 idxEnd = idxStart + lenFrames -1;
+% 
+%                 if idxEnd > length(l)
+%                     idxEnd = length(l);
+%                 end
+% 
+%                 l_frame = l(idxStart:idxEnd);
+%                 r_frame = r(idxStart:idxEnd);
+% 
+%                 % apply LPC
+%                 la = lpc(l_frame, 3);
+%                 l_frame = filter(la, 1, l_frame);
+% 
+%                 ra = lpc(r_frame, 3);
+%                 r_frame = filter(ra, 1, r_frame);
+% 
+%                 % conduct central moment analysis
+%                 for k = 1:length(cmOrd)
+% 
+%                     lm = moment(l_frame, cmOrd(k))/std(l_frame)^cmOrd(k);
+%                     rm = moment(r_frame, cmOrd(k))/std(r_frame)^cmOrd(k);
+% 
+%                     cml(k,n) = lm;
+%                     cmr(k,n) = rm;
+% 
+%                 end
+% 
+%                 estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
+%                 estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
+% 
+%             end
+% 
+%             % check whether NaN data appear during processing
+%             if or(anynan(cml) == 1, anynan(cmr) == 1)
+%                 warning(strcat("NaN value appear on the channel of ", string(j)))
+%             end
+% 
+%             l_sub_buf{j} = cml;
+%             r_sub_buf{j} = cmr;
+% 
+%             l_res_buf(j,:) = estl;
+%             r_res_buf(j,:) = estr;
+% 
+%         end
+% 
+%         env_lp_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
+%         env_lp_lp_data{i} = {l_res_buf, r_res_buf};
+% 
+%     end
 
     %% additional variable
     t_frames = linspace(0, length(env_lp_data{1}{1})/fs, nFrames);
@@ -470,7 +519,7 @@ for n = 1:length(audioInputNamesNew)
     %% save the variable's values
     audioName = erase(audioFilename, '.wav');
     dataFilename = strcat(audioName, ".mat"); 
-    save(fullfile(resultsDir, dataFilename), "cmOrd", "fs", "an_data","env_data", "rms_env_data", "env_lp_data", "env_lp_cm_data", "env_lp_lp_data", "env_lp_lp_cm_data", "fine_data", "fine_cm_data", "fine_lp_data", "fine_lp_cm_data", "t", "t_frames")
+    save(fullfile(resultsDir, dataFilename), "cmOrd", "fs", "an_data","env_data", "rms_env_data", "env_lp_data", "env_lp_cm_data", "fine_data", "fine_cm_data", "t", "t_frames")
     
     toc
     %% notification

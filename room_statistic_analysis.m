@@ -27,16 +27,16 @@ resultsFilenames = resultsFilenames(1:9*numSentences);
 degree = ["0", "30", "45", "60", "90", "min30", "min45", "min60", "min90"];
 
 fine_statistic = cell(1, length(degree)); % the structure is degree - sentence - room - channel - subband
-fine_lp_statistic = cell(1, length(degree));
+%fine_lp_statistic = cell(1, length(degree));
 env_statistic = cell(1, length(degree));
-env_lp_statistic = cell(1, length(degree));
+%env_lp_statistic = cell(1, length(degree));
 
 for d = 1:length(degree)
 
     FINE = cell(1, numSentences);
-    FINE_LP = cell(1, numSentences);
+    %FINE_LP = cell(1, numSentences);
     ENV = cell(1, numSentences);
-    ENV_LP = cell(1, numSentences);
+    %ENV_LP = cell(1, numSentences);
 
     idx = 1;
     for i = d:9:length(resultsFilenames) % indicator for sentences
@@ -44,9 +44,9 @@ for d = 1:length(degree)
         disp(strcat("Processing ", resultsFilenames(i).name));
 
         fine = cell(1, 5);
-        fine_lp = cell(1, 5);
+        %fine_lp = cell(1, 5);
         env = cell(1, 5);
-        env_lp = cell(1, 5);
+        %env_lp = cell(1, 5);
 
         for j = 1:5 % indicator for numbers of room 
 
@@ -67,50 +67,50 @@ for d = 1:length(degree)
                 lcm_fine = mean(fine_cm_data{j}{1}{k}, 2);
                 rcm_fine = mean(fine_cm_data{j}{2}{k}, 2);
 
-                lcm_fine_lp = mean(fine_lp_cm_data{j}{1}{k}, 2);
-                rcm_fine_lp = mean(fine_lp_cm_data{j}{2}{k}, 2);
+                %lcm_fine_lp = mean(fine_lp_cm_data{j}{1}{k}, 2);
+                %rcm_fine_lp = mean(fine_lp_cm_data{j}{2}{k}, 2);
 
                 lcm_env = mean(env_lp_cm_data{j}{1}{k}, 2);
                 rcm_env = mean(env_lp_cm_data{j}{2}{k}, 2);
 
-                lcm_env_lp = mean(env_lp_lp_cm_data{j}{1}{k}, 2);
-                rcm_env_lp = mean(env_lp_lp_cm_data{j}{2}{k}, 2);
+                %lcm_env_lp = mean(env_lp_lp_cm_data{j}{1}{k}, 2);
+                %rcm_env_lp = mean(env_lp_lp_cm_data{j}{2}{k}, 2);
 
                 % add on the provided array
                 l_fine{k} = lcm_fine;
                 r_fine{k} = rcm_fine;
 
-                l_fine_lp{k} = lcm_fine_lp;
-                r_fine_lp{k} = rcm_fine_lp;
+                %l_fine_lp{k} = lcm_fine_lp;
+                %r_fine_lp{k} = rcm_fine_lp;
 
                 l_env{k} = lcm_env;
                 r_env{k} = rcm_env;
 
-                l_env_lp{k} = lcm_env_lp;
-                r_env_lp{k} = rcm_env_lp;
+                %l_env_lp{k} = lcm_env_lp;
+                %r_env_lp{k} = rcm_env_lp;
 
             end
 
             fine{j} = {l_fine, r_fine};
-            fine_lp{j} = {l_fine_lp, r_fine_lp};
+            %fine_lp{j} = {l_fine_lp, r_fine_lp};
             env{j} = {l_env, r_env};
-            env_lp{j} = {l_env_lp, r_env_lp};
+            %env_lp{j} = {l_env_lp, r_env_lp};
 
         end
 
         FINE{idx} = fine;
-        FINE_LP{idx} = fine_lp;
+        %FINE_LP{idx} = fine_lp;
         ENV{idx} = env;
-        ENV_LP{idx} = env_lp;
+        %ENV_LP{idx} = env_lp;
 
         idx = idx + 1;
 
     end
 
     fine_statistic{d} = FINE;
-    fine_lp_statistic{d} = FINE_LP;
+    %fine_lp_statistic{d} = FINE_LP;
     env_statistic{d} = ENV;
-    env_lp_statistic{d} = ENV_LP;
+    %env_lp_statistic{d} = ENV_LP;
 
     disp(strcat("Completing processing data for sound comes from ", degree(d)));
 
@@ -118,6 +118,6 @@ end
 
 % save the variable
 dataName = strcat("room_data", ".mat");
-save(fullfile(saveDir, dataName), "fine_statistic", "fine_lp_statistic", "env_statistic", "env_lp_statistic");
+save(fullfile(saveDir, dataName), "fine_statistic", "env_statistic");
 disp(strcat("Saving ... ", dataName));
 disp(" ")

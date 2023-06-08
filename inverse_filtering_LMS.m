@@ -69,7 +69,118 @@ if par.voc_sampling_frequency_hz ~= fs
     t = 0:(1/fs):(max_len_data-1)/fs;
 end
 
-%% decompose into subband
+pe_ref_data = pe_data; % for reference information
+
+%% decompose into subband for obtain reverberant signal's information
+% Create analyse -Filterbank
+analyzer_stim = Gfb_Analyzer_new(par.voc_sampling_frequency_hz,...
+    par.gamma_order_stimulation, ...
+    par.center_frequencies_hz_stimulation,...
+    par.bandwidth_factor);
+
+an_ref_data = cell(1, length(pe_ref_data));
+for i = 1:length(pe_ref_data)
+    [l_sig, ~] = Gfb_Analyzer_process(analyzer_stim, pe_ref_data{i}(:,1)');
+    [r_sig, ~] = Gfb_Analyzer_process(analyzer_stim, pe_ref_data{i}(:,2)');
+    an_ref_data{i} = {l_sig, r_sig}; 
+end
+
+env_ref_data = cell(1, length(an_ref_data));
+rms_env_ref_data = cell(1, length(an_ref_data));
+fine_ref_data = cell(1, length(an_ref_data));
+for i = 1:length(an_ref_data)
+    % extract envelope
+    el_sig = abs(an_ref_data{i}{1});
+    er_sig = abs(an_ref_data{i}{2});
+
+    if size(el_sig,2) ~= size(er_sig,2)
+        error("Length of left and right analyzed signal is not same!")
+    end
+
+    weights = repmat(par.weights,1,size(el_sig,2));
+    el_sig = sqrt(weights.*(real(an_ref_data{i}{1}).^2+imag(an_ref_data{i}{1}).^2));
+    er_sig = sqrt(weights.*(real(an_ref_data{i}{2}).^2+imag(an_ref_data{i}{2}).^2));
+    
+    rmsl_sig = rms2(el_sig,2);
+    rmsr_sig = rms2(er_sig,2);
+
+    env_ref_data{i} = {el_sig, er_sig}; 
+    rms_env_ref_data{i} = {rmsl_sig, rmsr_sig};
+    
+    % extract fine structure
+    fl_sig = real(an_ref_data{i}{1});
+    fr_sig = real(an_ref_data{i}{2});
+
+    fine_ref_data{i} = {fl_sig, fr_sig};
+
+end
+
+env_lp_ref_data = cell(1, length(env_ref_data));
+for i = 1:length(env_ref_data)
+    l_sub_buf = nan(size(env_ref_data{i}{1}));
+    r_sub_buf = nan(size(env_ref_data{i}{2}));
+
+    for j = 1:size(env_ref_data{1}{1},1)
+        [b, a] = butter(1, (200./(fs/2)));
+        l_sig = filter(b, a, env_ref_data{i}{1}(j,:));
+        r_sig = filter(b, a, env_ref_data{i}{2}(j,:));
+
+        l_sub_buf(j,:) = l_sig;
+        r_sub_buf(j,:) = r_sig;
+    end
+    env_lp_ref_data{i} = {l_sub_buf, r_sub_buf};
+
+end
+
+%% apply full band LP analysis
+% split audio into several frames
+for i = 1:length(pe_data)
+    lenFrames = 0.032*fs;
+    lenOverlap = 0.5*lenFrames;
+    nFrames = floor((length(pe_data{i}(:,1)) - lenOverlap)/lenOverlap) + 1;
+
+    estl = zeros(1, length(pe_data{i}(:,1)));
+    estr = zeros(1, length(pe_data{i}(:,1)));
+    yresl = zeros(1, length(pe_data{i}(:,1)));
+    yresr = zeros(1, length(pe_data{i}(:,1)));
+
+    l = pe_data{i}(:,1);
+    r = pe_data{i}(:,2);
+
+    for n = 1:nFrames
+        % define start and end index
+        idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+        idxEnd = idxStart + lenFrames -1;
+
+        if idxEnd > length(pe_data{i}(:,1))
+            idxEnd = length(pe_data{i}(:,1));
+        end
+
+        l_frame = l(idxStart:idxEnd);
+        r_frame = r(idxStart:idxEnd);
+
+        % apply LPC on left channel
+        la = lpc(l_frame, 12);
+        estl_frame = filter([0 -la(2:end)], 1, l_frame);
+        resl_frame = l_frame - estl_frame;
+
+        estl(idxStart:idxEnd) = estl_frame;
+        yresl(idxStart:idxEnd) = resl_frame;
+
+        % apply LPC on right channel
+        ra = lpc(r_frame, 12);
+        estr_frame = filter([0 -ra(2:end)], 1, r_frame);
+        resr_frame = r_frame - estr_frame;
+
+        estr(idxStart:idxEnd) = estr_frame;
+        yresr(idxStart:idxEnd) = resr_frame;
+
+    end
+
+    pe_data{i} = [yresl', yresr']; 
+end
+
+%% decompose into subband for obtain filter coefficient
 % Create analyse -Filterbank
 analyzer_stim = Gfb_Analyzer_new(par.voc_sampling_frequency_hz,...
     par.gamma_order_stimulation, ...
@@ -130,116 +241,36 @@ for i = 1:length(env_data)
 
 end
 
-%% apply LP-analysis on fine structure subband 
-fine_lp_cm_data = cell(1, length(fine_data));
-fine_lp_data = cell(1, length(fine_data));
-
-for i = 1:length(fine_data)
-    % split audio into several frames
-    lenFrames = 0.032*fs;
-    lenOverlap = 0.5*lenFrames;
-    nFrames = floor((size(fine_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
-    cmOrd = 1:6;
-
-    l_sub_buf = cell(size(fine_data{i}{1}, 1), 1);
-    r_sub_buf = cell(size(fine_data{i}{2}, 1), 1);
-
-    l_res_buf = nan(size(fine_data{i}{1}));
-    r_res_buf = nan(size(fine_data{i}{2}));
-    
-    for j = 1:size(fine_data{1}{1},1)
-        l = fine_data{i}{1}(j,:);
-        r = fine_data{i}{2}(j,:);
-
-        cml = zeros(length(cmOrd), nFrames);
-        cmr = zeros(length(cmOrd), nFrames);
-
-        estl = zeros(size(l));
-        estr = zeros(size(r));
-
-        for n = 1:nFrames
-            % define start and end index
-            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
-            idxEnd = idxStart + lenFrames -1;
-
-            if idxEnd > length(l)
-                idxEnd = length(l);
-            end
-            
-            l_frame = l(idxStart:idxEnd);
-            r_frame = r(idxStart:idxEnd);
-
-            % apply LPC
-            la = lpc(l_frame, 10);
-            estl_frame = filter([0 -la(2:end)], 1, l_frame .* hann(length(idxStart:idxEnd))');
-            l_frame = l_frame - estl_frame;
-
-            ra = lpc(r_frame, 10);
-            estr_frame = filter([0 -ra(2:end)], 1, r_frame .* hann(length(idxStart:idxEnd))');
-            r_frame = r_frame - estr_frame;
-
-            % conduct central moment analysis
-            for k = 1:length(cmOrd)
-
-                lm = moment(l_frame, cmOrd(k)) / (std(l_frame)^cmOrd(k));
-                rm = moment(r_frame, cmOrd(k)) / (std(r_frame)^cmOrd(k));
-
-                cml(k,n) = lm;
-                cmr(k,n) = rm;
-
-            end
-            
-            estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
-            estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
-
-        end
-
-        % check whether NaN data appear during processing
-        if or(anynan(cml) == 1, anynan(cmr) == 1)
-            warning(strcat("NaN value appear on the channel of ", string(j)))
-        end
-
-        l_sub_buf{j} = cml;
-        r_sub_buf{j} = cmr;
-
-        l_res_buf(j,:) = estl;
-        r_res_buf(j,:) = estr;
-
-    end
-
-    fine_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
-    fine_lp_data{i} = {l_res_buf, r_res_buf};
-
-end
-
 %% conduct inverse filtering on fine data (LMS)
 fine_inv_data = cell(1, length(an_data));
 fine_rmse_data = cell(1, length(an_data));
 for i = 3%:length(fine_lp_data)
     % split audio into several frames
-    lenFrames = 0.032*fs;
-    lenOverlap = 0.5*lenFrames;
-    nFrames = floor((size(fine_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+    lenFrames = 250;%0.032*fs;
+    lenOverlap = 0.2*lenFrames;
+    nFrames = floor((size(fine_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
     
-    l_sub_buf = nan(size(fine_lp_data{i}{1}));
-    r_sub_buf = nan(size(fine_lp_data{i}{2}));
+    l_sub_buf = nan(size(fine_data{i}{1}));
+    r_sub_buf = nan(size(fine_data{i}{2}));
 
-    l_rmse_buf = nan(size(fine_lp_data{i}{1}, 1), 1);
-    r_rmse_buf = nan(size(fine_lp_data{i}{1}, 1), 1);
+    l_rmse_buf = nan(size(fine_data{i}{1}, 1), 1);
+    r_rmse_buf = nan(size(fine_data{i}{1}, 1), 1);
+
+    hos = 3;
 
     for j = 1%:size(fine_lp_data{1}{1},1)
-        lrev = fine_data{i}{1}(j,:);
-        rrev = fine_data{i}{1}(j,:);
+        lrev = fine_ref_data{i}{1}(j,:);
+        rrev = fine_ref_data{i}{2}(j,:);
 
         lrms = rms(lrev);
         rrms = rms(lrev);
 
-        l = fine_lp_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
-        r = fine_lp_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+        l = fine_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+        r = fine_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
 
         % inverse filter application lies here
         lenFilter = lenFrames;
-        nIter = 1000;
+        nIter = 200;
         mu = 1e-6;
         
         filterOrder = lenFrames;
@@ -253,6 +284,8 @@ for i = 3%:length(fine_lp_data)
         lzr2 = zeros(blockSize, 1);
         lzr3 = zeros(blockSize, 1);
         lzr4 = zeros(blockSize, 1);
+        lzr5 = zeros(blockSize, 1);
+        lzr6 = zeros(blockSize, 1);
 
         rgh = [1 zeros(1, length((1:filterOrder))-1)]';
         RGh = fft([rgh; zeros(stepSize-1, 1)]);
@@ -261,6 +294,8 @@ for i = 3%:length(fine_lp_data)
         rzr2 = zeros(blockSize, 1);
         rzr3 = zeros(blockSize, 1);
         rzr4 = zeros(blockSize, 1);
+        rzr5 = zeros(blockSize, 1);
+        rzr6 = zeros(blockSize, 1);
 
         tic
         for m = 1:nIter
@@ -269,233 +304,6 @@ for i = 3%:length(fine_lp_data)
             for n = 1:stepSize:length(l)
                 %idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
                 %idxEnd = idxStart + lenOverlap - 1;
-                
-                if n+stepSize-1 > length(l)
-                    li = [l(n:length(l)) zeros(1, 201)];
-                    ri = [r(n:length(l)) zeros(1, 201)];
-                else
-                    li = l(n:n+stepSize-1);
-                    ri = r(n:n+stepSize-1);
-                end
-
-                % processing left signal
-                lenh_fine(1:filterOrder-1) = lenh_fine(end-filterOrder+2:end);
-                lenh_fine(filterOrder:end) = li;
-
-                LENH_FINE = fft(lenh_fine);
-                cLENH_FINE = conj(LENH_FINE);
-                lzrn = ifft(LGh.*LENH_FINE);
-
-                lzrn(1:filterOrder-1) = 0;
-                lzr2(filterOrder:end) = lzrn(filterOrder:end).^2;
-                lzr3(filterOrder:end) = lzrn(filterOrder:end).^3;
-                lzr4(filterOrder:end) = lzrn(filterOrder:end).^4;
-
-                LZ2 = sum(lzr2(filterOrder:end));
-                LZ4 = sum(lzr4(filterOrder:end));
-
-                LZ3 = fft(lzr3).*cLENH_FINE;
-                LZRN = fft(lzrn).*cLENH_FINE;
-
-                lzKurt(m) = max(lzKurt(m), LZ4/(LZ2^2 + 1e-15)*stepSize);
-                
-                LgJ = 4 * (LZ2 * LZ3 - LZ4*LZRN) / ((LZ2^3 + 1e-20)*stepSize);
-                % LGh = LGh + mu*LgJ;
-                LGh = LGh + (1/(eps+norm(LgJ)^2))*LgJ;
-
-                LGh=LGh./sqrt(sum(abs(LGh).^2)/blockSize);
-
-                % processing right signal
-                renh_fine(1:filterOrder-1) = renh_fine(end-filterOrder+2:end);
-                renh_fine(filterOrder:end) = ri;
-
-                RENH_FINE = fft(renh_fine);
-                cRENH_FINE = conj(RENH_FINE);
-                rzrn = ifft(RGh.*RENH_FINE);
-
-                rzrn(1:filterOrder-1) = 0;
-                rzr2(filterOrder:end) = rzrn(filterOrder:end).^2;
-                rzr3(filterOrder:end) = rzrn(filterOrder:end).^3;
-                rzr4(filterOrder:end) = rzrn(filterOrder:end).^4;
-
-                RZ2 = sum(rzr2(filterOrder:end));
-                RZ4 = sum(rzr4(filterOrder:end));
-
-                RZ3 = fft(rzr3).*cRENH_FINE;
-                RZRN = fft(rzrn).*cRENH_FINE;
-
-                rzKurt(m) = max(rzKurt(m), RZ4/(RZ2^2 + 1e-15)*stepSize);
-                
-                RgJ = 4 * (RZ2 * RZ3 - RZ4*RZRN) / ((RZ2^3 + 1e-20)*stepSize);
-                RGh = RGh + mu*RgJ;
-
-                RGh = RGh./sqrt(sum(abs(RGh).^2)/blockSize);
-
-            end
-
-        end
-        toc
-
-        lgh = ifft(LGh);
-        ln = filter(lgh, 1, lrev);
-
-        ln = ln * lrms/rms(ln);
-
-        rgh = ifft(RGh);
-        rn = filter(rgh, 1, rrev);
-
-        rn = rn * lrms/rms(rn);
-
-        l_sub_buf(j,:) = ln;
-        r_sub_buf(j,:) = rn;
-
-        % calculate error
-        l_rmse_buf(j,:) = sqrt(mean((ln-fine_data{1}{1}(j,:)).^2));
-        r_rmse_buf(j,:) = sqrt(mean((rn-fine_data{1}{2}(j,:)).^2));
-
-    end
-    fine_inv_data{i} = {l_sub_buf, r_sub_buf};
-    fine_rmse_data{i} = {l_rmse_buf, r_rmse_buf};
-
-end
-
-%% apply LP-analysis on envelope structure subband 
-env_lp_lp_cm_data = cell(1, length(env_lp_data));
-env_lp_lp_data = cell(1, length(env_lp_data));
-
-for i = 1:length(env_lp_data)
-    % split audio into several frames
-    lenFrames = 0.032*fs;
-    lenOverlap = 0.5*lenFrames;
-    nFrames = floor((size(env_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
-    cmOrd = 1:6;
-
-    l_sub_buf = cell(size(env_lp_data{i}{1}, 1), 1);
-    r_sub_buf = cell(size(env_lp_data{i}{2}, 1), 1);
-
-    l_res_buf = nan(size(env_lp_data{i}{1}));
-    r_res_buf = nan(size(env_lp_data{i}{2}));
-    
-    for j = 1:size(env_lp_data{1}{1},1)
-        l = env_lp_data{i}{1}(j,:);
-        r = env_lp_data{i}{2}(j,:);
-
-        cml = zeros(length(cmOrd), nFrames);
-        cmr = zeros(length(cmOrd), nFrames);
-
-        estl = zeros(size(l));
-        estr = zeros(size(r));
-
-        for n = 1:nFrames
-            % define start and end index
-            idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
-            idxEnd = idxStart + lenFrames -1;
-
-            if idxEnd > length(l)
-                idxEnd = length(l);
-            end
-
-            l_frame = l(idxStart:idxEnd);
-            r_frame = r(idxStart:idxEnd);
-
-            % apply LPC
-            la = lpc(l_frame, 3);
-            l_frame = filter(la, 1, l_frame .* hann(length(idxStart:idxEnd))');
-
-            ra = lpc(r_frame, 3);
-            r_frame = filter(ra, 1, r_frame .* hann(length(idxStart:idxEnd))');
-
-            % conduct central moment analysis
-            for k = 1:length(cmOrd)
-
-                lm = moment(l_frame, cmOrd(k))/std(l_frame)^cmOrd(k);
-                rm = moment(r_frame, cmOrd(k))/std(r_frame)^cmOrd(k);
-
-                cml(k,n) = lm;
-                cmr(k,n) = rm;
-
-            end
-            
-            estl(idxStart:idxEnd) = l_frame(1:length(idxStart:idxEnd));
-            estr(idxStart:idxEnd) = r_frame(1:length(idxStart:idxEnd));
-
-        end
-
-        % check whether NaN data appear during processing
-        if or(anynan(cml) == 1, anynan(cmr) == 1)
-            warning(strcat("NaN value appear on the channel of ", string(j)))
-        end
-
-        l_sub_buf{j} = cml;
-        r_sub_buf{j} = cmr;
-
-        l_res_buf(j,:) = estl;
-        r_res_buf(j,:) = estr;
-
-    end
-
-    env_lp_lp_cm_data{i} = {l_sub_buf, r_sub_buf};
-    env_lp_lp_data{i} = {l_res_buf, r_res_buf};
-
-end
-
-%% conduct inverse filtering on env data
-env_inv_data = cell(1, length(env_lp_lp_data));
-env_rmse_data = cell(1, length(env_lp_lp_data));
-for i = 1:length(env_lp_lp_data)
-    % split audio into several frames
-    lenFrames = 50;%0.032*fs;
-    lenOverlap = 0.2*lenFrames;
-    nFrames = floor((size(env_lp_lp_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
-    
-    l_sub_buf = nan(size(env_lp_lp_data{i}{1}));
-    r_sub_buf = nan(size(env_lp_lp_data{i}{2}));
-
-    l_rmse_buf = nan(size(env_lp_lp_data{i}{1}, 1), 1);
-    r_rmse_buf = nan(size(env_lp_lp_data{i}{1}, 1), 1);
-
-    for j = 1:size(env_lp_lp_data{1}{1},1)
-        lrev = env_lp_data{i}{1}(j,:);
-        rrev = env_lp_data{i}{2}(j,:);
-
-        lrms = rms(lrev);
-        rrms = rms(lrev);
-
-        l = env_lp_lp_data{i}{1}(j,:);
-        r = env_lp_lp_data{i}{2}(j,:);
-
-        % inverse filter application lies here
-        lenFilter = lenFrames;
-        nIter = 150;
-        mu = 3e-9;
-        
-        filterOrder = lenFrames;
-        stepSize = lenOverlap;
-        blockSize = stepSize + filterOrder - 1;
-
-        lgh = ones(1,length((1:filterOrder)))';
-        LGh = fft([lgh; zeros(stepSize-1, 1)]);
-        
-        lzKurt = zeros(nIter, 1);
-        lzr2 = zeros(blockSize, 1);
-        lzr3 = zeros(blockSize, 1);
-        lzr4 = zeros(blockSize, 1);
-
-        rgh = ones(1,length((1:filterOrder)))';
-        RGh = fft([rgh; zeros(stepSize-1, 1)]);
-        
-        rzKurt = zeros(nIter, 1);
-        rzr2 = zeros(blockSize, 1);
-        rzr3 = zeros(blockSize, 1);
-        rzr4 = zeros(blockSize, 1);
-
-        tic
-        for m = 1:nIter
-            lenh_fine = zeros(blockSize, 1);
-            renh_fine = zeros(blockSize, 1);
-            for n = 1:stepSize:length(l)
-                % idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
-                % idxEnd = idxStart + lenOverlap - 1;
 
                 if n+stepSize-1 > length(l)
                     li = [l(n:length(l)) zeros(1, 1)];
@@ -504,7 +312,7 @@ for i = 1:length(env_lp_lp_data)
                     li = l(n:n+stepSize-1);
                     ri = r(n:n+stepSize-1);
                 end
-                
+
                 % processing left signal
                 lenh_fine(1:filterOrder-1) = lenh_fine(end-filterOrder+2:end);
                 lenh_fine(filterOrder:end) = li;
@@ -517,17 +325,59 @@ for i = 1:length(env_lp_lp_data)
                 lzr2(filterOrder:end) = lzrn(filterOrder:end).^2;
                 lzr3(filterOrder:end) = lzrn(filterOrder:end).^3;
                 lzr4(filterOrder:end) = lzrn(filterOrder:end).^4;
+                lzr5(filterOrder:end) = lzrn(filterOrder:end).^5;
+                lzr6(filterOrder:end) = lzrn(filterOrder:end).^6;
 
-                LZ2 = sum(lzr2(filterOrder:end));
-                LZ4 = sum(lzr4(filterOrder:end));
+                if hos == 3
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ3 = mean(lzr3(filterOrder:end));
 
-                LZ3 = fft(lzr3).*cLENH_FINE;
-                LZRN = fft(lzrn).*cLENH_FINE;
+                    LZ2t = fft(lzr2).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
 
-                lzKurt(m) = max(lzKurt(m), LZ4/(LZ2^2 + 1e-15)*stepSize);
-                
-                LgJ = 4 * (LZ2 * LZ3 - LZ4*LZRN) / ((LZ2^3 + 1e-20)*stepSize);
-                LGh = LGh + mu*LgJ;
+                    lzKurt(m) = max(lzKurt(m), LZ3/(LZ2^(3/2) + eps));
+
+                    LgJ = 3 * (LZ2 * LZ2t - LZ3*LZRN) / (LZ2^3 + 1e-20);
+                end
+
+                if hos == 4
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ4 = mean(lzr4(filterOrder:end));
+
+                    LZ3 = fft(lzr3).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ4/(LZ2^2 + eps));
+
+                    LgJ = 4 * (LZ2 * LZ3 - LZ4*LZRN) / (LZ2^3 + 1e-20);
+                end
+
+                if hos == 5
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ5 = mean(lzr5(filterOrder:end));
+
+                    LZ4 = fft(lzr4).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ5/(LZ2^(2.5) + eps));
+
+                    LgJ = 5 * (LZ2 * LZ4 - LZ5*LZRN) / (LZ2^(3.5) + 1e-20);
+                end
+
+                if hos == 6
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ6 = mean(lzr6(filterOrder:end));
+
+                    LZ5 = fft(lzr5).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ6/(LZ2^3 + eps));
+
+                    LgJ = 6 * (LZ2 * LZ5 - LZ6*LZRN) / (LZ2^4 + 1e-20);
+                end
+
+                % LGh = LGh + mu*LgJ / stepSize;
+                LGh = LGh + (1/(eps+norm(LgJ)^2))*LgJ / stepSize;
 
                 LGh=LGh./sqrt(sum(abs(LGh).^2)/blockSize);
 
@@ -543,19 +393,61 @@ for i = 1:length(env_lp_lp_data)
                 rzr2(filterOrder:end) = rzrn(filterOrder:end).^2;
                 rzr3(filterOrder:end) = rzrn(filterOrder:end).^3;
                 rzr4(filterOrder:end) = rzrn(filterOrder:end).^4;
+                rzr5(filterOrder:end) = rzrn(filterOrder:end).^5;
+                rzr6(filterOrder:end) = rzrn(filterOrder:end).^6;
 
-                RZ2 = sum(rzr2(filterOrder:end));
-                RZ4 = sum(rzr4(filterOrder:end));
+                if hos == 3
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ3 = mean(rzr3(filterOrder:end));
 
-                RZ3 = fft(rzr3).*cRENH_FINE;
-                RZRN = fft(rzrn).*cRENH_FINE;
+                    RZ2t = fft(rzr2).*cRENH_FINE;
+                    RZRN = fft(rzrn).*cRENH_FINE;
 
-                rzKurt(m) = max(rzKurt(m), RZ4/(RZ2^2 + 1e-15)*stepSize);
-                
-                RgJ = 4 * (RZ2 * RZ3 - RZ4*RZRN) / ((RZ2^3 + 1e-20)*stepSize);
-                RGh = RGh + mu*RgJ;
+                    rzKurt(m) = max(rzKurt(m), RZ3/(RZ2^(3/2) + eps));
 
-                RGh = RGh./sqrt(sum(abs(RGh).^2)/blockSize);
+                    RgJ = 3 * (RZ2 * RZ2t - RZ3*RZRN) / (RZ2^3 + 1e-20);
+                end
+
+                if hos == 4
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ4 = mean(rzr4(filterOrder:end));
+
+                    RZ3 = fft(rzr3).*cRENH_FINE;
+                    RZRN = fft(rzrn).*cRENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ4/(RZ2^2 + eps));
+
+                    RgJ = 4 * (RZ2 * RZ3 - RZ4*RZRN) / (RZ2^3 + 1e-20);
+                end
+
+                if hos == 5
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ5 = mean(rzr5(filterOrder:end));
+
+                    RZ4 = fft(rzr4).*cRENH_FINE;
+                    RZRN = fft(rzrn).*cRENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ5/(RZ2^(2.5) + eps));
+
+                    RgJ = 5 * (RZ2 * RZ4 - RZ5*RZRN) / (RZ2^(3.5) + 1e-20);
+                end
+
+                if hos == 6
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ6 = mean(rzr6(filterOrder:end));
+
+                    RZ5 = fft(rzr5).*cLENH_FINE;
+                    RZRN = fft(rzrn).*cLENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ6/(RZ2^3 + eps));
+
+                    RgJ = 6 * (RZ2 * RZ5 - RZ6*RZRN) / (RZ2^4 + 1e-20);
+                end
+
+                % RGh = RGh + mu*RgJ / stepSize;
+                RGh = RGh + (1/(eps+norm(RgJ)^2))*RgJ / stepSize;
+
+                RGh=RGh./sqrt(sum(abs(RGh).^2)/blockSize);
 
             end
 
@@ -569,214 +461,425 @@ for i = 1:length(env_lp_lp_data)
 
         rgh = ifft(RGh);
         rn = filter(rgh, 1, rrev);
-        
+
         rn = rn * lrms/rms(rn);
 
-        % calculate error
-        l_rmse_buf(j,:) = sqrt(mean((ln-env_lp_data{1}{1}(j,:)).^2));
-        r_rmse_buf(j,:) = sqrt(mean((rn-env_lp_data{1}{2}(j,:)).^2));
-        
         l_sub_buf(j,:) = ln;
         r_sub_buf(j,:) = rn;
+
+        % calculate error
+        l_rmse_buf(j,:) = sqrt(mean((ln-fine_ref_data{1}{1}(j,:)).^2));
+        r_rmse_buf(j,:) = sqrt(mean((rn-fine_ref_data{1}{2}(j,:)).^2));
+
+    end
+    fine_inv_data{i} = {l_sub_buf, r_sub_buf};
+    fine_rmse_data{i} = {l_rmse_buf, r_rmse_buf};
+
+end
+
+%% conduct inverse filtering on env data (LMS)
+env_inv_data = cell(1, length(an_data));
+env_rmse_data = cell(1, length(an_data));
+for i = 3%:length(fine_lp_data)
+    % split audio into several frames
+    lenFrames = 250;%0.032*fs;
+    lenOverlap = 0.2*lenFrames;
+    nFrames = floor((size(env_data{i}{1},2) - lenOverlap)/lenOverlap) + 1;
+    
+    l_sub_buf = nan(size(env_data{i}{1}));
+    r_sub_buf = nan(size(env_data{i}{2}));
+
+    l_rmse_buf = nan(size(env_data{i}{1}, 1), 1);
+    r_rmse_buf = nan(size(env_data{i}{1}, 1), 1);
+
+    hos = 6;
+
+    for j = 1%:size(fine_lp_data{1}{1},1)
+        lrev = env_ref_data{i}{1}(j,:);
+        rrev = env_ref_data{i}{2}(j,:);
+
+        lrms = rms(lrev);
+        rrms = rms(lrev);
+
+        l = env_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+        r = env_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+
+        % inverse filter application lies here
+        lenFilter = lenFrames;
+        nIter = 250;
+        mu = 1e-6;
         
+        filterOrder = lenFrames;
+        stepSize = lenOverlap;
+        blockSize = stepSize + filterOrder - 1;
+
+        lgh = [1 zeros(1, length((1:filterOrder))-1)]';
+        LGh = fft([lgh; zeros(stepSize-1, 1)]);
+        
+        lzKurt = zeros(nIter, 1);
+        lzr2 = zeros(blockSize, 1);
+        lzr3 = zeros(blockSize, 1);
+        lzr4 = zeros(blockSize, 1);
+        lzr5 = zeros(blockSize, 1);
+        lzr6 = zeros(blockSize, 1);
+
+        rgh = [1 zeros(1, length((1:filterOrder))-1)]';
+        RGh = fft([rgh; zeros(stepSize-1, 1)]);
+        
+        rzKurt = zeros(nIter, 1);
+        rzr2 = zeros(blockSize, 1);
+        rzr3 = zeros(blockSize, 1);
+        rzr4 = zeros(blockSize, 1);
+        rzr5 = zeros(blockSize, 1);
+        rzr6 = zeros(blockSize, 1);
+
+        tic
+        for m = 1:nIter
+            lenh_fine = zeros(blockSize, 1);
+            renh_fine = zeros(blockSize, 1);
+            for n = 1:stepSize:length(l)
+                %idxStart = 1 + (n-1) * (lenFrames - lenOverlap);
+                %idxEnd = idxStart + lenOverlap - 1;
+
+                if n+stepSize-1 > length(l)
+                    li = [l(n:length(l)) zeros(1, 1)];
+                    ri = [r(n:length(l)) zeros(1, 1)];
+                else
+                    li = l(n:n+stepSize-1);
+                    ri = r(n:n+stepSize-1);
+                end
+
+                % processing left signal
+                lenh_fine(1:filterOrder-1) = lenh_fine(end-filterOrder+2:end);
+                lenh_fine(filterOrder:end) = li;
+
+                LENH_FINE = fft(lenh_fine);
+                cLENH_FINE = conj(LENH_FINE);
+                lzrn = ifft(LGh.*LENH_FINE);
+
+                lzrn(1:filterOrder-1) = 0;
+                lzr2(filterOrder:end) = lzrn(filterOrder:end).^2;
+                lzr3(filterOrder:end) = lzrn(filterOrder:end).^3;
+                lzr4(filterOrder:end) = lzrn(filterOrder:end).^4;
+                lzr5(filterOrder:end) = lzrn(filterOrder:end).^5;
+                lzr6(filterOrder:end) = lzrn(filterOrder:end).^6;
+
+                if hos == 3
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ3 = mean(lzr3(filterOrder:end));
+
+                    LZ2t = fft(lzr2).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ3/(LZ2^(3/2) + eps));
+
+                    LgJ = 3 * (LZ2 * LZ2t - LZ3*LZRN) / (LZ2^3 + 1e-20);
+                end
+
+                if hos == 4
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ4 = mean(lzr4(filterOrder:end));
+
+                    LZ3 = fft(lzr3).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ4/(LZ2^2 + eps));
+
+                    LgJ = 4 * (LZ2 * LZ3 - LZ4*LZRN) / (LZ2^3 + 1e-20);
+                end
+
+                if hos == 5
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ5 = mean(lzr5(filterOrder:end));
+
+                    LZ4 = fft(lzr4).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ5/(LZ2^(2.5) + eps));
+
+                    LgJ = 5 * (LZ2 * LZ4 - LZ5*LZRN) / (LZ2^(3.5) + 1e-20);
+                end
+
+                if hos == 6
+                    LZ2 = mean(lzr2(filterOrder:end));
+                    LZ6 = mean(lzr6(filterOrder:end));
+
+                    LZ5 = fft(lzr5).*cLENH_FINE;
+                    LZRN = fft(lzrn).*cLENH_FINE;
+
+                    lzKurt(m) = max(lzKurt(m), LZ6/(LZ2^3 + eps));
+
+                    LgJ = 6 * (LZ2 * LZ5 - LZ6*LZRN) / (LZ2^4 + 1e-20);
+                end
+
+                % LGh = LGh + mu*LgJ / stepSize;
+                LGh = LGh + (1/(eps+norm(LgJ)^2))*LgJ / stepSize;
+
+                LGh=LGh./sqrt(sum(abs(LGh).^2)/blockSize);
+
+                % processing right signal
+                renh_fine(1:filterOrder-1) = renh_fine(end-filterOrder+2:end);
+                renh_fine(filterOrder:end) = ri;
+
+                RENH_FINE = fft(renh_fine);
+                cRENH_FINE = conj(RENH_FINE);
+                rzrn = ifft(RGh.*RENH_FINE);
+
+                rzrn(1:filterOrder-1) = 0;
+                rzr2(filterOrder:end) = rzrn(filterOrder:end).^2;
+                rzr3(filterOrder:end) = rzrn(filterOrder:end).^3;
+                rzr4(filterOrder:end) = rzrn(filterOrder:end).^4;
+                rzr5(filterOrder:end) = rzrn(filterOrder:end).^5;
+                rzr6(filterOrder:end) = rzrn(filterOrder:end).^6;
+
+                if hos == 3
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ3 = mean(rzr3(filterOrder:end));
+
+                    RZ2t = fft(rzr2).*cRENH_FINE;
+                    RZRN = fft(rzrn).*cRENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ3/(RZ2^(3/2) + eps));
+
+                    RgJ = 3 * (RZ2 * RZ2t - RZ3*RZRN) / (RZ2^3 + 1e-20);
+                end
+
+                if hos == 4
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ4 = mean(rzr4(filterOrder:end));
+
+                    RZ3 = fft(rzr3).*cRENH_FINE;
+                    RZRN = fft(rzrn).*cRENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ4/(RZ2^2 + eps));
+
+                    RgJ = 4 * (RZ2 * RZ3 - RZ4*RZRN) / (RZ2^3 + 1e-20);
+                end
+
+                if hos == 5
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ5 = mean(rzr5(filterOrder:end));
+
+                    RZ4 = fft(rzr4).*cRENH_FINE;
+                    RZRN = fft(rzrn).*cRENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ5/(RZ2^(2.5) + eps));
+
+                    RgJ = 5 * (RZ2 * RZ4 - RZ5*RZRN) / (RZ2^(3.5) + 1e-20);
+                end
+
+                if hos == 6
+                    RZ2 = mean(rzr2(filterOrder:end));
+                    RZ6 = mean(rzr6(filterOrder:end));
+
+                    RZ5 = fft(rzr5).*cLENH_FINE;
+                    RZRN = fft(rzrn).*cLENH_FINE;
+
+                    rzKurt(m) = max(rzKurt(m), RZ6/(RZ2^3 + eps));
+
+                    RgJ = 6 * (RZ2 * RZ5 - RZ6*RZRN) / (RZ2^4 + 1e-20);
+                end
+
+                % RGh = RGh + mu*RgJ / stepSize;
+                RGh = RGh + (1/(eps+norm(RgJ)^2))*RgJ / stepSize;
+
+                RGh=RGh./sqrt(sum(abs(RGh).^2)/blockSize);
+
+            end
+
+        end
+        toc
+
+        lgh = ifft(LGh);
+        ln = filter(lgh, 1, lrev);
+
+        ln = ln * lrms/rms(ln);
+
+        rgh = ifft(RGh);
+        rn = filter(rgh, 1, rrev);
+
+        rn = rn * lrms/rms(rn);
+
+        l_sub_buf(j,:) = ln;
+        r_sub_buf(j,:) = rn;
+
+        % calculate error
+        l_rmse_buf(j,:) = sqrt(mean((ln-env_ref_data{1}{1}(j,:)).^2));
+        r_rmse_buf(j,:) = sqrt(mean((rn-env_ref_data{1}{2}(j,:)).^2));
+
     end
     env_inv_data{i} = {l_sub_buf, r_sub_buf};
     env_rmse_data{i} = {l_rmse_buf, r_rmse_buf};
 
 end
 
-%% plot the fine data
-data_label = ["clean speech", "low reverberant speech"];
-%data_label = ["clean speech", "high reverberant speech"];
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(fine_data{i}{1}(j,:))), fine_data{i}{1}(j,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(fine_data{i}{1}(j,:))), fine_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
+%% conduct fine spectral substraction
+fine_ss_data = cell(1, length(an_data));
+for i = 3%:length(fine_lp_data)
+    % split audio into several frames
+    wlen = 2048;
+    hop = 1024;
+    nfft = 2048;
+
+    l_sub_buf = zeros(size(fine_data{i}{1}));
+    r_sub_buf = zeros(size(fine_data{i}{2}));
+
+    for j = 1%:size(fine_lp_data{1}{1},1)
+        l = fine_inv_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+        r = fine_inv_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+
+        ch = [l; r];
+        ss = [];
+        
+        for c = 1:size(ch,1)
+        % apply spectral substraction
+        [Sz, f_stft, t_stft] = stft(ch(c,:), fs, Window=hamming(wlen), OverlapLength=hop, FFTLength=nfft);
+        Pz=abs(Sz).^2;
+        phz=angle(Sz);
+
+        ro_w=7;
+        a_w=5;
+        i_w=-ro_w:15;
+        wS=(i_w+a_w)/(a_w^2).*exp(-.5*(i_w/a_w+1).^2);
+        wS(i_w<-a_w)=0;
+        % figure;plot(i_w,wS)
+
+        gS=.32;
+        epS=1e-3;
+        Pl=gS*filter(wS,1,Pz.').';
+
+        P_att=(Pz-Pl)./Pz;
+        P_att(P_att<epS)=epS;
+
+        Pxh=Pz.*P_att;
+        Sxh=sqrt(Pxh).*exp(1i*phz);
+
+        nu1 = .05;
+        nu2 = 4;
+        Ez=sum(abs(Sz).^2, 1)/size(Sz,1);
+        Exh=sum(abs(Sxh).^2, 1)/size(Sxh,1);
+
+        P_att=ones(size(Sz,2),1);
+        P_att(Ez<nu1 & Ez./Exh>nu2)=1e-3;
+        Sxh = Sxh*spdiags(P_att,0,length(P_att),length(P_att));
+
+        [xh, t_istft] = istft(Sxh, fs, Window=hamming(wlen), OverlapLength=hop, FFTLength=nfft);
+            
+        ss = [ss; xh'];
+        
         end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
+
+        l_sub_buf(j,1:length(ss)) = real(ss(1,:));
+        r_sub_buf(j,1:length(ss)) = real(ss(2,:));
+
     end
+    fine_ss_data{i} = {l_sub_buf, r_sub_buf};
+
 end
 
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(fine_data{i}{1}(j+6,:))), fine_data{i}{1}(j+6,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(fine_data{i}{1}(j+6,:))), fine_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
+%% conduct env spectral substraction
+env_ss_data = cell(1, length(an_data));
+for i = 3%:length(fine_lp_data)
+    % split audio into several frames
+    wlen = 2048;
+    hop = 1024;
+    nfft = 2048;
+
+    l_sub_buf = zeros(size(fine_data{i}{1}));
+    r_sub_buf = zeros(size(fine_data{i}{2}));
+
+    for j = 1%:size(fine_lp_data{1}{1},1)
+        l = env_inv_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+        r = env_inv_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
+
+        ch = [l; r];
+        ss = [];
+        
+        for c = 1:size(ch,1)
+        % apply spectral substraction
+        [Sz, f_stft, t_stft] = stft(ch(c,:), fs, Window=hamming(wlen), OverlapLength=hop, FFTLength=nfft);
+        Pz=abs(Sz).^2;
+        phz=angle(Sz);
+
+        ro_w=7;
+        a_w=5;
+        i_w=-ro_w:15;
+        wS=(i_w+a_w)/(a_w^2).*exp(-.5*(i_w/a_w+1).^2);
+        wS(i_w<-a_w)=0;
+        % figure;plot(i_w,wS)
+
+        gS=.32;
+        epS=1e-3;
+        Pl=gS*filter(wS,1,Pz.').';
+
+        P_att=(Pz-Pl)./Pz;
+        P_att(P_att<epS)=epS;
+
+        Pxh=Pz.*P_att;
+        Sxh=sqrt(Pxh).*exp(1i*phz);
+
+        nu1 = .05;
+        nu2 = 4;
+        Ez=sum(abs(Sz).^2, 1)/size(Sz,1);
+        Exh=sum(abs(Sxh).^2, 1)/size(Sxh,1);
+
+        P_att=ones(size(Sz,2),1);
+        P_att(Ez<nu1 & Ez./Exh>nu2)=1e-3;
+        Sxh = Sxh*spdiags(P_att,0,length(P_att),length(P_att));
+
+        [xh, t_istft] = istft(Sxh, fs, Window=hamming(wlen), OverlapLength=hop, FFTLength=nfft);
+            
+        ss = [ss; xh'];
+        
         end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
+
+        l_sub_buf(j,1:length(ss)) = real(ss(1,:));
+        r_sub_buf(j,1:length(ss)) = real(ss(2,:));
+
     end
+    fine_ss_data{i} = {l_sub_buf, r_sub_buf};
+
 end
 
-%% plot inverse filter of fine
+%% customized plot
+% fine low-rev
+figure
+subplot(3,2,1)
+plot(t(1:length(fine_data{1}{1}(1,:))), fine_ref_data{1}{1}(1,:), "Color", [0 0 0 1])
+hold on 
+plot(t(1:length(fine_data{2}{1}(1,:))), fine_ss_data{3}{1}(1,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+title("Fine Structure of Subband (Left Channel)")
 
-%% plot the LP residue of fine data
-data_label = ["clean speech", "low reverberant speech"];
-%data_label = ["clean speech", "high reverberant speech"];
-figure
-for i = 1:2%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(fine_lp_data{i}{1}(j,:))), fine_lp_data{i}{1}(j,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(fine_lp_data{i}{1}(j,:))), fine_lp_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
+subplot(3,2,2)
+plot(t(1:length(fine_data{1}{2}(1,:))), fine_ref_data{1}{2}(1,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{2}(1,:))), fine_ss_data{3}{2}(1,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+title("Fine Structure of Subband (Right Channel)")
 
-figure
-for i = 1:2%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(fine_lp_data{i}{1}(j+6,:))), fine_lp_data{i}{1}(j+6,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(fine_lp_data{i}{1}(j+6,:))), fine_lp_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
-%% plot the inverse filter of fine data
-%data_label = ["clean speech", "low reverberant speech"];
-data_label = ["clean speech", "high reverberant speech"];
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(fine_data{i}{1}(j,:))), fine_data{i}{1}(j,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(fine_inv_data{i}{1}(j,:))), fine_inv_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
- 
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(fine_data{i}{1}(j+6,:))), fine_data{i}{1}(j+6,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(fine_inv_data{i}{1}(j+6,:))), fine_inv_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
+subplot(3,2,3)
+plot(t(1:length(fine_data{1}{1}(2,:))), fine_ref_data{1}{1}(2,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{1}(2,:))), fine_inv_data{3}{1}(2,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
 
-%% plot the env data
-%data_label = ["clean speech", "low reverberant speech"];
-data_label = ["clean speech", "high reverberant speech"];
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(env_lp_data{i}{1}(j,:))), env_lp_data{i}{1}(j,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(env_lp_data{i}{1}(j,:))), env_lp_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
+subplot(3,2,4)
+plot(t(1:length(fine_data{1}{2}(2,:))), fine_ref_data{1}{2}(2,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{2}(2,:))), fine_inv_data{3}{2}(2,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
 
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(env_lp_data{i}{1}(j+6,:))), env_lp_data{i}{1}(j+6,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(env_lp_data{i}{1}(j+6,:))), env_lp_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
+subplot(3,2,5)
+plot(t(1:length(fine_data{1}{1}(3,:))), fine_ref_data{1}{1}(3,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{1}(3,:))), fine_inv_data{3}{1}(3,:), "Color", [0.5 0.5 0.5 0.4])
+xlabel("Time (s)")
+ylabel("Amplitude")
 
-%% plot inverse filter of envelope
-%data_label = ["clean speech", "low reverberant speech"];
-data_label = ["clean speech", "high reverberant speech"];
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(env_lp_data{i}{1}(j,:))), env_lp_data{i}{1}(j,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(env_inv_data{i}{1}(j,:))), env_inv_data{i}{1}(j,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
-
-figure
-for i = 1:2:3%length(env_lp_data)
-    for j = 1:6%size(env_data{1}{1},1)
-        subplot(6,1,j)
-        if i == 1
-            plot(t(1:length(env_lp_data{i}{1}(j+6,:))), env_lp_data{i}{1}(j+6,:), "Color", [0 0 0 1])
-        else
-            plot(t(1:length(env_inv_data{i}{1}(j+6,:))), env_inv_data{i}{1}(j+6,:), "Color", [0.5 0.5 0.5 0.8])
-        end
-        legend(data_label)
-        hold on
-        ylabel("Central Moment Value")
-        if j == 6
-            xlabel("Time (s)")
-        end
-    end
-end
+subplot(3,2,6)
+plot(t(1:length(fine_data{1}{2}(3,:))), fine_ref_data{i}{2}(3,:), "Color", [0 0 0 1])
+hold on
+plot(t(1:length(fine_data{2}{2}(3,:))), fine_inv_data{3}{2}(3,:), "Color", [0.5 0.5 0.5 0.4])
+ylabel("Amplitude")
+xlabel("Time (s)")
