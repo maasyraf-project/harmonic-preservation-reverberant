@@ -118,6 +118,6 @@ end
 
 % save the variable
 dataName = strcat("room_data", ".mat");
-save(fullfile(saveDir, dataName), "fine_statistic", "env_statistic");
+%save(fullfile(saveDir, dataName), "fine_statistic", "env_statistic");
 disp(strcat("Saving ... ", dataName));
 disp(" ")

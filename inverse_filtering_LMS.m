@@ -244,7 +244,7 @@ end
 %% conduct inverse filtering on fine data (LMS)
 fine_inv_data = cell(1, length(an_data));
 fine_rmse_data = cell(1, length(an_data));
-for i = 3%:length(fine_lp_data)
+for i = 2:length(fine_data)
     % split audio into several frames
     lenFrames = 250;%0.032*fs;
     lenOverlap = 0.2*lenFrames;
@@ -258,7 +258,7 @@ for i = 3%:length(fine_lp_data)
 
     hos = 3;
 
-    for j = 1%:size(fine_lp_data{1}{1},1)
+    for j = 1:size(fine_data{1}{1},1)
         lrev = fine_ref_data{i}{1}(j,:);
         rrev = fine_ref_data{i}{2}(j,:);
 
@@ -270,7 +270,7 @@ for i = 3%:length(fine_lp_data)
 
         % inverse filter application lies here
         lenFilter = lenFrames;
-        nIter = 200;
+        nIter = 150;
         mu = 1e-6;
         
         filterOrder = lenFrames;
@@ -480,7 +480,7 @@ end
 %% conduct inverse filtering on env data (LMS)
 env_inv_data = cell(1, length(an_data));
 env_rmse_data = cell(1, length(an_data));
-for i = 3%:length(fine_lp_data)
+for i = 2:length(env_data)
     % split audio into several frames
     lenFrames = 250;%0.032*fs;
     lenOverlap = 0.2*lenFrames;
@@ -492,9 +492,9 @@ for i = 3%:length(fine_lp_data)
     l_rmse_buf = nan(size(env_data{i}{1}, 1), 1);
     r_rmse_buf = nan(size(env_data{i}{1}, 1), 1);
 
-    hos = 6;
+    hos = 3;
 
-    for j = 1%:size(fine_lp_data{1}{1},1)
+    for j = 1:size(env_data{1}{1},1)
         lrev = env_ref_data{i}{1}(j,:);
         rrev = env_ref_data{i}{2}(j,:);
 
@@ -506,7 +506,7 @@ for i = 3%:length(fine_lp_data)
 
         % inverse filter application lies here
         lenFilter = lenFrames;
-        nIter = 250;
+        nIter = 150;
         mu = 1e-6;
         
         filterOrder = lenFrames;
@@ -715,7 +715,7 @@ end
 
 %% conduct fine spectral substraction
 fine_ss_data = cell(1, length(an_data));
-for i = 3%:length(fine_lp_data)
+for i = 2:length(fine_lp_data)
     % split audio into several frames
     wlen = 2048;
     hop = 1024;
@@ -724,7 +724,7 @@ for i = 3%:length(fine_lp_data)
     l_sub_buf = zeros(size(fine_data{i}{1}));
     r_sub_buf = zeros(size(fine_data{i}{2}));
 
-    for j = 1%:size(fine_lp_data{1}{1},1)
+    for j = 1:size(fine_lp_data{1}{1},1)
         l = fine_inv_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
         r = fine_inv_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
 
@@ -779,7 +779,7 @@ end
 
 %% conduct env spectral substraction
 env_ss_data = cell(1, length(an_data));
-for i = 3%:length(fine_lp_data)
+for i = 2:length(fine_lp_data)
     % split audio into several frames
     wlen = 2048;
     hop = 1024;
@@ -788,7 +788,7 @@ for i = 3%:length(fine_lp_data)
     l_sub_buf = zeros(size(fine_data{i}{1}));
     r_sub_buf = zeros(size(fine_data{i}{2}));
 
-    for j = 1%:size(fine_lp_data{1}{1},1)
+    for j = 1:size(fine_lp_data{1}{1},1)
         l = env_inv_data{i}{1}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
         r = env_inv_data{i}{2}(j,:);% ./ max(abs(fine_lp_data{i}{1}(j,:)));
 
@@ -847,14 +847,14 @@ figure
 subplot(3,2,1)
 plot(t(1:length(fine_data{1}{1}(1,:))), fine_ref_data{1}{1}(1,:), "Color", [0 0 0 1])
 hold on 
-plot(t(1:length(fine_data{2}{1}(1,:))), fine_ss_data{3}{1}(1,:), "Color", [0.5 0.5 0.5 0.4])
+plot(t(1:length(fine_data{2}{1}(1,:))), fine_inv_data{3}{1}(1,:), "Color", [0.5 0.5 0.5 0.4])
 ylabel("Amplitude")
 title("Fine Structure of Subband (Left Channel)")
 
 subplot(3,2,2)
 plot(t(1:length(fine_data{1}{2}(1,:))), fine_ref_data{1}{2}(1,:), "Color", [0 0 0 1])
 hold on
-plot(t(1:length(fine_data{2}{2}(1,:))), fine_ss_data{3}{2}(1,:), "Color", [0.5 0.5 0.5 0.4])
+plot(t(1:length(fine_data{2}{2}(1,:))), fine_inv_data{3}{2}(1,:), "Color", [0.5 0.5 0.5 0.4])
 ylabel("Amplitude")
 title("Fine Structure of Subband (Right Channel)")
 

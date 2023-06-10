@@ -69,7 +69,7 @@ for n = 1:nFrames
 end
 
 %% apply inverse filtering
-filterOrder = 1000;
+filterOrder = 250;
 stepSize = 0.2*filterOrder;
 blockSize = stepSize + filterOrder - 1;
 
@@ -78,7 +78,7 @@ lgh = [1 zeros(1, length((1:filterOrder))-1)]';
 lgh = lgh./sqrt(sum(abs(lgh).^2));
 LGh = fft([lgh; zeros(stepSize-1, 1)]);
 
-nIter = 500;
+nIter = 150;
 mu = 3e-6;
 
 lzKurt = zeros(nIter, 1);
@@ -88,7 +88,7 @@ lzr4 = zeros(blockSize, 1);
 lzr5 = zeros(blockSize, 1);
 lzr6 = zeros(blockSize, 1);
 
-hos = 6;
+hos = 3;
 
 tic
 for m = 1:nIter
@@ -98,7 +98,7 @@ for m = 1:nIter
         %idxEnd = idxStart + lenOverlap - 1;
 
         if n+stepSize-1 > length(yres)
-            li = [yres(n:length(yres)) zeros(1, 60)];
+            li = [yres(n:length(yres)) zeros(1, 13)];
         else
             li = yres(n:n+stepSize-1);
         end

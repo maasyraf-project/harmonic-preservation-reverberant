@@ -513,7 +513,7 @@ figure
 chan = 1;
 cm = 4;
 t_frames = linspace(0, length(fine_data{1}{1})/fs, nFrames);
-for i = 1:2:3%length(env_lp_data)
+for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
@@ -531,7 +531,7 @@ for i = 1:2:3%length(env_lp_data)
 end
 
 figure
-for i = 1:2:3%length(env_lp_data)
+for i = 1:2%length(env_lp_data)
     for j = 1:6%size(env_data{1}{1},1)
         subplot(6,1,j)
         if i == 1
@@ -952,62 +952,64 @@ cm = 6;
 t_frames = linspace(0, length(fine_data{1}{1})/fs, nFrames);
 figure
 subplot(3,2,1)
-plot(t_frames(1:length(fine_lp_cm_data{1}{1}{1}(cm,:))), fine_lp_cm_data{1}{1}{1}(cm,:), "Color", 'black')
+plot(t_frames(1:length(fine_cm_data{1}{1}{1}(cm,:))), fine_cm_data{1}{1}{1}(cm,:), "Color", 'black')
 hold on 
-plot(t_frames(1:length(fine_lp_cm_data{2}{1}{1}(cm,:))), fine_lp_cm_data{2}{1}{1}(cm,:), "Color", 'red')
+plot(t_frames(1:length(fine_cm_data{2}{1}{1}(cm,:))), fine_cm_data{2}{1}{1}(cm,:), "Color", 'red')
 hold on
-plot(t_frames(1:length(fine_lp_cm_data{3}{1}{1}(cm,:))), fine_lp_cm_data{3}{1}{1}(cm,:), "Color", 'blue')
+plot(t_frames(1:length(fine_cm_data{3}{1}{1}(cm,:))), fine_cm_data{3}{1}{1}(cm,:), "Color", 'blue')
 ylabel("Value")
 %ylim([0 0.01])
 title("High Order Statistic (HOS) of Subband (Left Channel)")
 
 subplot(3,2,2)
-plot(t_frames(1:length(fine_lp_cm_data{1}{2}{1}(cm,:))), fine_lp_cm_data{1}{2}{1}(cm,:), "Color", 'black')
+plot(t_frames(1:length(fine_cm_data{1}{2}{1}(cm,:))), fine_cm_data{1}{2}{1}(cm,:), "Color", 'black')
 hold on 
-plot(t_frames(1:length(fine_lp_cm_data{2}{2}{1}(cm,:))), fine_lp_cm_data{2}{2}{1}(cm,:), "Color", 'red')
+plot(t_frames(1:length(fine_cm_data{2}{2}{1}(cm,:))), fine_cm_data{2}{2}{1}(cm,:), "Color", 'red')
 hold on
-plot(t_frames(1:length(fine_lp_cm_data{3}{2}{1}(cm,:))), fine_lp_cm_data{3}{2}{1}(cm,:), "Color", 'blue')
+plot(t_frames(1:length(fine_cm_data{3}{2}{1}(cm,:))), fine_cm_data{3}{2}{1}(cm,:), "Color", 'blue')
 ylabel("Value")
 %ylim([0 0.01])
 title("High Order Statistic (HOS) Structure of Subband (Right Channel)")
 
 subplot(3,2,3)
-plot(t_frames(1:length(fine_lp_cm_data{1}{1}{2}(cm,:))), fine_lp_cm_data{1}{1}{2}(cm,:), "Color", 'black')
+plot(t_frames(1:length(fine_cm_data{1}{1}{2}(cm,:))), fine_cm_data{1}{1}{2}(cm,:), "Color", 'black')
 hold on 
-plot(t_frames(1:length(fine_lp_cm_data{2}{1}{2}(cm,:))), fine_lp_cm_data{2}{1}{2}(cm,:), "Color", 'red')
+plot(t_frames(1:length(fine_cm_data{2}{1}{2}(cm,:))), fine_cm_data{2}{1}{2}(cm,:), "Color", 'red')
 hold on
-plot(t_frames(1:length(fine_lp_cm_data{3}{1}{2}(cm,:))), fine_lp_cm_data{3}{1}{2}(cm,:), "Color", 'blue')
+plot(t_frames(1:length(fine_cm_data{3}{1}{2}(cm,:))), fine_cm_data{3}{1}{2}(cm,:), "Color", 'blue')
 ylabel("Value")
 %ylim([0 0.02])
 
 subplot(3,2,4)
-plot(t_frames(1:length(fine_lp_cm_data{1}{2}{2}(cm,:))), fine_lp_cm_data{1}{2}{2}(cm,:), "Color", 'black')
+plot(t_frames(1:length(fine_cm_data{1}{2}{2}(cm,:))), fine_cm_data{1}{2}{2}(cm,:), "Color", 'black')
 hold on 
-plot(t_frames(1:length(fine_lp_cm_data{2}{2}{2}(cm,:))), fine_lp_cm_data{2}{2}{2}(cm,:), "Color", 'red')
+plot(t_frames(1:length(fine_cm_data{2}{2}{2}(cm,:))), fine_cm_data{2}{2}{2}(cm,:), "Color", 'red')
 hold on
-plot(t_frames(1:length(fine_lp_cm_data{3}{2}{2}(cm,:))), fine_lp_cm_data{3}{2}{2}(cm,:), "Color", 'blue')
+plot(t_frames(1:length(fine_cm_data{3}{2}{2}(cm,:))), fine_cm_data{3}{2}{2}(cm,:), "Color", 'blue')
 ylabel("Value")
 %ylim([0 0.02])
 
 subplot(3,2,5)
-plot(t_frames(1:length(fine_lp_cm_data{1}{1}{3}(cm,:))), fine_lp_cm_data{1}{1}{3}(cm,:), "Color", 'black')
+plot(t_frames(1:length(fine_cm_data{1}{1}{3}(cm,:))), fine_cm_data{1}{1}{3}(cm,:), "Color", 'black')
 hold on 
-plot(t_frames(1:length(fine_lp_cm_data{2}{1}{3}(cm,:))), fine_lp_cm_data{2}{1}{3}(cm,:), "Color", 'red')
+plot(t_frames(1:length(fine_cm_data{2}{1}{3}(cm,:))), fine_cm_data{2}{1}{3}(cm,:), "Color", 'red')
 hold on
-plot(t_frames(1:length(fine_lp_cm_data{3}{1}{3}(cm,:))), fine_lp_cm_data{3}{1}{3}(cm,:), "Color", 'blue')
+plot(t_frames(1:length(fine_cm_data{3}{1}{3}(cm,:))), fine_cm_data{3}{1}{3}(cm,:), "Color", 'blue')
 xlabel("Time (s)")
 ylabel("Value")
 %ylim([0 0.02])
 
 subplot(3,2,6)
-plot(t_frames(1:length(fine_lp_cm_data{1}{2}{3}(cm,:))), fine_lp_cm_data{1}{2}{3}(cm,:), "Color", 'black')
+plot(t_frames(1:length(fine_cm_data{1}{2}{3}(cm,:))), fine_cm_data{1}{2}{3}(cm,:), "Color", 'black')
 hold on 
-plot(t_frames(1:length(fine_lp_cm_data{2}{2}{3}(cm,:))), fine_lp_cm_data{2}{2}{3}(cm,:), "Color", 'red')
+plot(t_frames(1:length(fine_cm_data{2}{2}{3}(cm,:))), fine_cm_data{2}{2}{3}(cm,:), "Color", 'red')
 hold on
-plot(t_frames(1:length(fine_lp_cm_data{3}{2}{3}(cm,:))), fine_lp_cm_data{3}{2}{3}(cm,:), "Color", 'blue')
+plot(t_frames(1:length(fine_cm_data{3}{2}{3}(cm,:))), fine_cm_data{3}{2}{3}(cm,:), "Color", 'blue')
 ylabel("Value")
 xlabel("Time (s)")
 %ylim([0 0.02])
+
+
 
 
 
