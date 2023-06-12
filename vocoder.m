@@ -5,7 +5,7 @@ close all
 %% load all necessary packages and files
 addpath(genpath('additional-packages'))
 
-filename = "its_ind_fena_e101_0001_min90.wav";
+filename = "its_ind_fena_e101_0002_min90.wav";
 % load anechoic signal
 [an, fs] = audioread(strcat("stimuli\unvocoded\UniS_Anechoic_BRIR_16k\", filename));
 
